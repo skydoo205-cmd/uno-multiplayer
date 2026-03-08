@@ -28,14 +28,40 @@ body { background: #1a1a1a; color: white; font-family: 'Segoe UI', sans-serif; t
 #scoreboard-content { background: #2c3e50; padding: 40px; border-radius: 20px; border: 3px solid gold; }
 .score-row { display: flex; justify-content: space-between; width: 300px; padding: 10px; margin: 5px; background: #34495e; }
 
-#pass-btn { background: #e67e22; color: white; border: none; padding: 15px 30px; border-radius: 5px; cursor: pointer; font-size: 1.1rem; }
-#uno-btn {
-    display: block; 
-    background: #c0392b;
-    color: white;
-    border: 3px solid #fff;
+/* REPLACE THE LAST TWO BLOCKS (#pass-btn and #uno-btn) WITH THIS */
+
+#controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px; /* This creates the physical space between buttons */
+    margin: 20px 0;
+    flex-wrap: wrap; /* Prevents overlap on small screens */
+}
+
+#uno-btn, #pass-btn {
     padding: 12px 25px;
     border-radius: 25px;
     font-weight: bold;
     cursor: pointer;
+    border: 3px solid #fff;
+    transition: transform 0.1s;
+    min-width: 140px; /* Keeps buttons the same size */
+    font-family: inherit;
+}
+
+#uno-btn { 
+    background: #c0392b; 
+    color: white; 
+    display: block; /* Always ready for Rule #9 */
+}
+
+#pass-btn { 
+    background: #e67e22; 
+    color: white; 
+    display: none; /* Only shows when Rule #7 triggers */
+}
+
+#uno-btn:active, #pass-btn:active {
+    transform: scale(0.95); /* Visual click feedback */
 }

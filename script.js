@@ -53,10 +53,29 @@ window.chooseColor = (color) => {
     socket.emit('playCard', { index: pendingIndex, chosenColor: color });
 };
 
-// Turn Actions
-document.getElementById('draw-pile').onclick = () => { if(myTurn && !hasDrawn) socket.emit('draw'); };
-document.getElementById('pass-btn').onclick = () => { socket.emit('pass'); };
+// --- REPLACE YOUR TURN ACTIONS WITH THIS ---
 
+// Function for the Pass Button (Rule #7)
+window.passTurn = () => {
+    if (!myTurn) return;
+    socket.emit('pass');
+    document.getElementById('pass-btn').style.display = 'none'; // Hide after click
+};
+
+// Function for the Uno Button (Rule #9)
+window.sayUno = () => {
+    socket.emit('sayUno');
+    const btn = document.getElementById('uno-btn');
+    btn.style.background = "#27ae60"; // Flash green for feedback
+    setTimeout(() => { btn.style.background = "#c0392b"; }, 1000);
+};
+
+// Handle clicks on the deck
+document.getElementById('draw-pile').onclick = () => { 
+    if(myTurn && !hasDrawn) socket.emit('draw'); 
+};
+
+// Server signal to show the Pass button
 socket.on('canPass', () => {
     hasDrawn = true;
     document.getElementById('pass-btn').style.display = 'block';
