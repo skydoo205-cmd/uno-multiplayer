@@ -212,5 +212,22 @@ io.on('connection', (socket) => {
         players = []; scores = {}; gameStarted = false;
     });
 });
-
+socket.on('disconnect', () => {
+        // Find if the person who left was in the game
+        const playerIndex = players.findIndex(p => p.id === socket.id);
+        
+        if (playerIndex !== -1) {
+            console.log(`Player ${socket.id} left. Clearing slot.`);
+            players.splice(playerIndex, 1); // Remove them from the array
+            
+            // If someone leaves mid-game, we must reset the tournament
+            gameStarted = false;
+            scores = {}; 
+            restartVotes.clear();
+            finishOrder = [];
+            
+            io.emit('status', `A player left. Waiting for players (${players.length}/4)...`);
+            io.emit('terminated', "Game interrupted because a player disconnected.");
+        }
+    });
 server.listen(process.env.PORT || 3000);
