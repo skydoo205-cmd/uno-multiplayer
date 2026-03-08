@@ -38,15 +38,10 @@ function createDeck() {
 
 function shuffle(arr) { return arr.sort(() => Math.random() - 0.5); }
 
-// UPDATED: Correct Skip Winner Logic
 function nextTurn(skip = 1) {
     let playersCount = players.length;
     let attempts = 0;
-    
-    // Initial movement
     currentPlayerIndex = (currentPlayerIndex + (direction * skip) + playersCount) % playersCount;
-    
-    // If the person at this index has finished, keep moving
     while (finishOrder.includes(players[currentPlayerIndex].id) && attempts < playersCount) {
         currentPlayerIndex = (currentPlayerIndex + direction + playersCount) % playersCount;
         attempts++;
@@ -61,17 +56,14 @@ function resetGame() {
     currentPlayerIndex = 0;
     direction = 1;
     deck = shuffle(createDeck());
-
     players.forEach(p => {
         p.hand = deck.splice(0, 10); 
         p.lastDrawnCard = null;
-        p.saidUno = false; // Reset Uno status
+        p.saidUno = false;
     });
-
     const powerTypes = ['Skip', 'Reverse', '+2', '+4', 'Wild'];
     let validStartIdx = deck.findIndex(card => !powerTypes.includes(card.type) && card.color !== 'black');
     if (validStartIdx === -1) return resetGame();
-
     discardPile = [deck.splice(validStartIdx, 1)[0]];
     updateAll();
 }
@@ -128,7 +120,6 @@ io.on('connection', (socket) => {
             discardPile.push(card);
             player.lastDrawnCard = null; 
 
-            // --- 5-SECOND RULE ---
             if (player.hand.length === 1) {
                 player.saidUno = false;
                 setTimeout(() => {
@@ -152,15 +143,13 @@ io.on('connection', (socket) => {
             nextTurn(card.type === 'Skip' ? 2 : 1);
             updateAll();
         }
-    }); // End playCard MATCH
-    }); // End playCard FUNCTION (This was missing)
+    });
 
-    // --- ADDED: Uno Button Listener ---
     socket.on('sayUno', () => {
         const p = players.find(p => p.id === socket.id);
         if (p) {
             p.saidUno = true;
-            io.emit('status', `${p.id.substring(0,4)} said UNO!`);
+            io.emit('status', `Player ${p.id.substring(0,4)} said UNO!`);
         }
     });
 
@@ -179,9 +168,11 @@ io.on('connection', (socket) => {
         } else {
             if (player.lastDrawnCard) return socket.emit('status', "Already drew! Play or Pass.");
             const drawn = deck.shift();
-            player.hand.push(drawn);
-            player.lastDrawnCard = drawn; 
-            socket.emit('canPass');
+            if (drawn) {
+                player.hand.push(drawn);
+                player.lastDrawnCard = drawn; 
+                socket.emit('canPass');
+            }
         }
         updateAll();
     });
@@ -200,16 +191,14 @@ io.on('connection', (socket) => {
 
     socket.on('requestRestart', () => {
         restartVotes.add(socket.id);
-        if (restartVotes.size === players.filter(p => !finishOrder.includes(p.id)).length || restartVotes.size === players.length) resetGame();
+        if (restartVotes.size === players.length) resetGame();
     });
 
     socket.on('disconnect', () => {
         players = players.filter(p => p.id !== socket.id);
-        socket.on('disconnect', () => {
-        players = players.filter(p => p.id !== socket.id);
         gameStarted = false;
         io.emit('status', `Player left. (${players.length}/4)`);
     });
-}); // This closes io.on('connection')
+});
 
-server.listen(process.env.PORT || 3000); // This starts the server
+server.listen(process.env.PORT || 3000);
