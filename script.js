@@ -13,7 +13,14 @@ socket.on('init', data => {
 });
 
 socket.on('status', msg => {
-    document.getElementById('status').innerText = msg;
+    const statusDiv = document.getElementById('status');
+    statusDiv.innerText = msg;
+    
+    // Feedback: Turn status red if a penalty occurs
+    if (msg.includes("PENALTY") || msg.includes("TOO SLOW")) {
+        statusDiv.style.color = "#e74c3c";
+        setTimeout(() => { statusDiv.style.color = "white"; }, 3000);
+    }
 });
 
 // Update Sidebar (Rule #10)
@@ -55,34 +62,30 @@ window.chooseColor = (color) => {
 
 // --- TURN ACTIONS ---
 
-// Function for the Pass Button (Rule #7)
+// Function for the Pass Button (Rule #7) - MERGED & FIXED
 window.passTurn = () => {
     if (!myTurn) return;
-    socket.emit('pass');
-    // Hide the button after use
-    document.getElementById('pass-btn').style.display = 'none';
-    document.getElementById('pass-btn').removeAttribute('style'); // Clear force-style
+    socket.emit('pass'); 
+    // We keep the button visible, so we don't force-hide it here
 };
 
-// Function for the Uno Button (Rule #9)
+// Function for the Uno Button (Rule #9) - UPDATED FOR 5s RULE
 window.sayUno = () => {
-    socket.emit('sayUno');
+    socket.emit('sayUno'); // This signal tells the server to stop the timer
     const btn = document.getElementById('uno-btn');
-    btn.style.background = "#27ae60"; // Flash green for feedback
+    btn.style.background = "#27ae60"; // Flash green for success feedback
     setTimeout(() => { btn.style.background = "#c0392b"; }, 1000);
 };
 
 // Handle clicks on the deck
 document.getElementById('draw-pile').onclick = () => { 
-    if(myTurn && !hasDrawn) socket.emit('draw'); 
+    if(myTurn && !hasDrawn) {
+        socket.emit('draw'); 
+        hasDrawn = true; // Local check to prevent double-clicks
+    }
 };
 
-window.passTurn = () => {
-    if (!myTurn) return;
-    // We just emit the pass; the server will check if it's allowed
-    socket.emit('pass'); 
-};
-
+// Fixed turn-setting logic
 function setTurn(id) {
     myTurn = (socket.id === id);
     const status = document.getElementById('status');
@@ -90,8 +93,8 @@ function setTurn(id) {
     
     if (myTurn) {
         hasDrawn = false;
-        // DELETE THE LINE BELOW
-        // document.getElementById('pass-btn').style.display = 'none'; 
+        // Logic to ensure Pass Button remains visible based on your preference
+        document.getElementById('pass-btn').style.display = 'inline-block';
     }
 }
 
@@ -100,20 +103,6 @@ function renderTop(c) {
     const el = document.getElementById('top-card');
     el.className = `card ${c.color}`;
     el.innerHTML = `<span>${c.type}</span>`;
-}
-
-function setTurn(id) {
-    myTurn = (socket.id === id);
-    const status = document.getElementById('status');
-    status.innerText = myTurn ? "YOUR TURN!" : "Waiting...";
-    
-    if (myTurn) {
-        hasDrawn = false;
-        // Reset pass button visibility at start of turn
-        const passBtn = document.getElementById('pass-btn');
-        passBtn.style.display = 'none';
-        passBtn.removeAttribute('style'); 
-    }
 }
 
 // Tournament Results (Rule #13)
