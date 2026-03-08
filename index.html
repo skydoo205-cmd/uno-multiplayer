@@ -35,6 +35,19 @@
         <div id="my-hand"></div>
     </div>
 
+    <div id="scoreboard-overlay" style="display:none;">
+        <div id="scoreboard-content">
+            <h2>Tournament Results</h2>
+            <div id="score-list">
+                </div>
+            <div class="score-buttons">
+                <button onclick="requestRestart()" class="restart-btn">Restart Game</button>
+                <button onclick="exitGame()" class="exit-btn">Exit Tournament</button>
+            </div>
+            <p id="vote-count">Votes: 0/4</p>
+        </div>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script src="script.js"></script>
 </body>

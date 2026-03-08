@@ -64,7 +64,7 @@ io.on('connection', (socket) => {
         });
     }
 
-    socket.on('playCard', (data) => {
+   socket.on('playCard', (data) => {
         const pIdx = players.findIndex(p => p.id === socket.id);
         if (pIdx !== currentPlayerIndex) return;
 
@@ -72,8 +72,21 @@ io.on('connection', (socket) => {
         let card = player.hand[data.index];
         let top = discardPile[discardPile.length - 1];
 
-        // Valid Move Logic
+        // NEW RULE: If they just drew a card, they can ONLY play that specific card
+        if (player.lastDrawnCard && card !== player.lastDrawnCard) {
+            return socket.emit('status', "You must play the card you just drew or pass!");
+        }
+
+// Valid Move Logic
         if (card.color === top.color || card.type === top.type || card.color === 'black') {
+            
+            // --- NEW STACKING RESTRICTION ---
+            // If a +4 is currently being stacked, you can ONLY play another +4
+            if (stackCount > 0 && top.type === '+4' && card.type !== '+4') {
+                return socket.emit('status', "You can only play a +4 on top of a +4!");
+            }
+            // --------------------------------
+
             if (card.color === 'black') card.color = data.chosenColor;
             
             // Stacking Logic
@@ -97,13 +110,13 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('draw', () => {
+   socket.on('draw', () => {
         const pIdx = players.findIndex(p => p.id === socket.id);
         if (pIdx !== currentPlayerIndex) return;
         let player = players[pIdx];
 
         if (stackCount > 0) {
-            // Penalty Draw
+            // Penalty Draw (Stacking)
             for (let i = 0; i < stackCount; i++) {
                 if (deck.length === 0) {
                     const top = discardPile.pop();
@@ -113,23 +126,29 @@ io.on('connection', (socket) => {
                 player.hand.push(deck.shift());
             }
             stackCount = 0;
+            player.lastDrawnCard = null; // Reset restriction after penalty
             nextTurn();
-            io.emit('update', { 
-                topCard: discardPile[discardPile.length-1], 
-                turnId: players[currentPlayerIndex].id,
-                stack: 0
-            });
+            // ... (rest of your existing update emit)
         } else {
             // Normal Draw
-            player.hand.push(deck.shift());
+            const drawnCard = deck.shift();
+            player.hand.push(drawnCard);
+            
+            // NEW RULE: Remember the card they just drew
+            player.lastDrawnCard = drawnCard; 
+            
             socket.emit('canPass');
         }
         socket.emit('hand', player.hand);
     });
 
-    socket.on('pass', () => {
+   socket.on('pass', () => {
         const pIdx = players.findIndex(p => p.id === socket.id);
         if (pIdx !== currentPlayerIndex) return;
+        
+        // NEW RULE: Reset the drawn card restriction when passing
+        players[pIdx].lastDrawnCard = null; 
+        
         nextTurn();
         io.emit('update', { 
             topCard: discardPile[discardPile.length-1], 

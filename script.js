@@ -3,7 +3,10 @@ let myTurn = false;
 let hasDrawn = false;
 let pendingIndex = null;
 
+// --- 1. GAME SETUP & UPDATES ---
 socket.on('init', data => {
+    // Hide scoreboard when a new round starts
+    document.getElementById('scoreboard-overlay').style.display = 'none';
     renderHand(data.hand);
     renderTop(data.topCard);
     setTurn(data.turnId);
@@ -23,8 +26,40 @@ socket.on('canPass', () => {
     document.getElementById('pass-btn').style.display = 'block';
 });
 
-socket.on('updateTurn', id => setTurn(id));
+socket.on('status', msg => {
+    // If the server sends a "Restart Votes" update, show it on the overlay
+    const voteText = document.getElementById('vote-count');
+    if (voteText && msg.includes("Restart Votes")) {
+        voteText.innerText = msg;
+    }
+});
 
+// --- 2. TOURNAMENT & WIN LOGIC ---
+socket.on('tournamentResults', data => {
+    const scoreList = document.getElementById('score-list');
+    const overlay = document.getElementById('scoreboard-overlay');
+    
+    // Create the leaderboard rows
+    scoreList.innerHTML = data.order.map((id, index) => {
+        const points = [3, 2, 1, 0][index];
+        const isMe = id === socket.id ? " (YOU)" : "";
+        return `
+            <div class="score-row">
+                <span>${index + 1}. Player ${id.substring(0,5)}${isMe}</span>
+                <span>+${points} pts (Total: ${data.allScores[id]})</span>
+            </div>
+        `;
+    }).join('');
+
+    overlay.style.display = 'flex';
+});
+
+socket.on('terminated', msg => {
+    alert(msg);
+    window.location.reload();
+});
+
+// --- 3. PLAYER ACTIONS ---
 function renderHand(hand) {
     const cont = document.getElementById('my-hand');
     cont.innerHTML = '';
@@ -56,8 +91,22 @@ document.getElementById('draw-pile').onclick = () => {
     if (myTurn && !hasDrawn) socket.emit('draw');
 };
 
-document.getElementById('pass-btn').onclick = () => socket.emit('pass');
+document.getElementById('pass-btn').onclick = () => {
+    socket.emit('pass');
+};
 
+// --- 4. TOURNAMENT ACTIONS ---
+window.requestRestart = () => {
+    socket.emit('requestRestart');
+};
+
+window.exitGame = () => {
+    if (confirm("End the tournament for everyone?")) {
+        socket.emit('exitGame');
+    }
+};
+
+// --- 5. UI HELPERS ---
 function renderTop(c) {
     const el = document.getElementById('top-card');
     el.className = `card ${c.color}`;
@@ -66,6 +115,7 @@ function renderTop(c) {
 
 function setTurn(id) {
     myTurn = (socket.id === id);
-    document.getElementById('status').innerText = myTurn ? "YOUR TURN!" : "Waiting...";
-    document.getElementById('status').style.color = myTurn ? "#2ecc71" : "white";
+    const status = document.getElementById('status');
+    status.innerText = myTurn ? "YOUR TURN!" : `Waiting for Player ${id.substring(0,5)}...`;
+    status.style.color = myTurn ? "#2ecc71" : "white";
 }
