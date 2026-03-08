@@ -136,7 +136,16 @@ io.on('connection', (socket) => {
 
             if (player.hand.length === 0 && !finishOrder.includes(player.id)) {
                 finishOrder.push(player.id);
-                io.emit('status', `A player finished! Rank: ${finishOrder.length}`);
+                io.emit('status', `Player ${player.id.substring(0,4)} finished! Rank: ${finishOrder.length}`);
+
+                if (finishOrder.length >= players.length - 1) {
+                    const lastPlayer = players.find(p => !finishOrder.includes(p.id));
+                    if (lastPlayer) finishOrder.push(lastPlayer.id);
+
+                    io.emit('tournamentResults', { order: finishOrder });
+                    gameStarted = false; 
+                    return; 
+                }
             }
 
             if (card.type === 'Reverse') direction *= -1;
