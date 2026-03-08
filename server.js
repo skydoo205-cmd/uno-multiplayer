@@ -56,20 +56,18 @@ function resetGame() {
     direction = 1;
     deck = shuffle(createDeck());
 
-    // Deal cards to players first
+    // Deal 10 cards to players
     players.forEach(p => {
-        p.hand = deck.splice(0, 7);
+        p.hand = deck.splice(0, 10); 
         p.lastDrawnCard = null;
     });
 
-    // RULE: Find the first index of a card that is NOT a power card (Skip, Reverse, +2, +4, Wild)
+    // RULE: Find the first index of a card that is NOT a power card
     const powerTypes = ['Skip', 'Reverse', '+2', '+4', 'Wild'];
     let validStartIdx = deck.findIndex(card => !powerTypes.includes(card.type) && card.color !== 'black');
 
-    // If no numeric card is found (impossible in a standard deck, but safe), reshuffle
     if (validStartIdx === -1) return resetGame();
 
-    // Remove that specific numeric card from the deck and make it the starting card
     discardPile = [deck.splice(validStartIdx, 1)[0]];
     
     updateAll();
@@ -103,13 +101,10 @@ io.on('connection', (socket) => {
         let card = player.hand[data.index];
         let top = discardPile[discardPile.length - 1];
 
-        // 1. RULE #7: If a card was drawn, MUST play that card.
         if (player.lastDrawnCard && card !== player.lastDrawnCard) {
             return socket.emit('status', "Play the drawn card or Pass!");
         }
 
-        // 2. STACK LOCK: If a penalty is active, you MUST stack or you'll be forced to draw.
-        // This prevents the bug where you played a normal card on a +8 stack.
         if (stackCount > 0) {
             const isStackable = (card.type === '+4') || (top.type !== '+4' && card.type === '+2');
             if (!isStackable) {
@@ -117,11 +112,9 @@ io.on('connection', (socket) => {
             }
         }
 
-        // 3. NORMAL MATCHING: Only checked if no stack is active or if stacking is valid.
         const isMatch = card.color === top.color || card.type === top.type || card.color === 'black';
 
         if (isMatch) {
-            // Apply stacking rules strictly
             if (stackCount > 0 && top.type === '+4' && card.type === '+2') return;
 
             if (card.color === 'black') card.color = data.chosenColor;
@@ -130,9 +123,8 @@ io.on('connection', (socket) => {
 
             player.hand.splice(data.index, 1);
             discardPile.push(card);
-            player.lastDrawnCard = null; // Clear draw restriction
+            player.lastDrawnCard = null; 
 
-            // ... (rest of your turn-skipping and win logic) ...
             if (card.type === 'Reverse') direction *= -1;
             nextTurn(card.type === 'Skip' ? 2 : 1);
             updateAll();
@@ -144,24 +136,22 @@ io.on('connection', (socket) => {
         if (pIdx !== currentPlayerIndex) return;
         let player = players[pIdx];
 
-        // RULE #6: Choice to draw the penalty stack.
         if (stackCount > 0) {
             for (let i = 0; i < stackCount; i++) {
                 if (deck.length > 0) player.hand.push(deck.shift());
             }
             stackCount = 0;
-            player.lastDrawnCard = null; // No restriction after taking a penalty.
-            nextTurn(); // Penalty always ends the turn.
+            player.lastDrawnCard = null;
+            nextTurn();
         } 
-        // RULE #1: Limit normal draw to 1 card per turn.
         else {
             if (player.lastDrawnCard) {
                 return socket.emit('status', "You already drew! Play it or Pass.");
             }
             const drawn = deck.shift();
             player.hand.push(drawn);
-            player.lastDrawnCard = drawn; // Lock hand to this card.
-            socket.emit('canPass'); // Tell frontend to show Pass button
+            player.lastDrawnCard = drawn; 
+            socket.emit('canPass'); // Signal to show Pass button
         }
         updateAll();
     });
@@ -169,7 +159,6 @@ io.on('connection', (socket) => {
     socket.on('pass', () => {
         const pIdx = players.findIndex(p => p.id === socket.id);
         if (pIdx === currentPlayerIndex) {
-            // Player must draw at least once before passing if they have no match.
             if (!players[pIdx].lastDrawnCard) {
                 return socket.emit('status', "You must draw a card before passing!");
             }
@@ -181,7 +170,7 @@ io.on('connection', (socket) => {
 
     socket.on('requestRestart', () => {
         restartVotes.add(socket.id);
-        if (restartVotes.size === 4) resetGame();
+        if (restartVotes.size === players.length) resetGame();
     });
 
     socket.on('disconnect', () => {
