@@ -17,13 +17,13 @@ socket.on('status', msg => {
     statusDiv.innerText = msg;
     
     // Feedback: Turn status red if a penalty occurs
-    if (msg.includes("PENALTY") || msg.includes("TOO SLOW")) {
+    if (msg.includes("PENALTY") || msg.includes("TOO SLOW") || msg.includes("reshuffled")) {
         statusDiv.style.color = "#e74c3c";
         setTimeout(() => { statusDiv.style.color = "white"; }, 3000);
     }
 });
 
-// Update Sidebar (Rule #10)
+// Sidebar Stats
 function updateStats(counts) {
     const list = document.getElementById('stats-list');
     list.innerHTML = counts.map(p => `
@@ -62,39 +62,39 @@ window.chooseColor = (color) => {
 
 // --- TURN ACTIONS ---
 
-// Function for the Pass Button (Rule #7) - MERGED & FIXED
 window.passTurn = () => {
     if (!myTurn) return;
     socket.emit('pass'); 
-    // We keep the button visible, so we don't force-hide it here
 };
 
-// Function for the Uno Button (Rule #9) - UPDATED FOR 5s RULE
 window.sayUno = () => {
-    socket.emit('sayUno'); // This signal tells the server to stop the timer
+    socket.emit('sayUno'); 
     const btn = document.getElementById('uno-btn');
-    btn.style.background = "#27ae60"; // Flash green for success feedback
+    btn.style.background = "#27ae60"; 
     setTimeout(() => { btn.style.background = "#c0392b"; }, 1000);
 };
 
 // Handle clicks on the deck
 document.getElementById('draw-pile').onclick = () => { 
-    if(myTurn && !hasDrawn) {
+    // FIXED: Removed local hasDrawn block to allow reshuffle retries
+    if(myTurn) {
         socket.emit('draw'); 
-        hasDrawn = true; // Local check to prevent double-clicks
     }
 };
 
 // Fixed turn-setting logic
 function setTurn(id) {
+    const wasMyTurn = myTurn;
     myTurn = (socket.id === id);
     const status = document.getElementById('status');
     status.innerText = myTurn ? "YOUR TURN!" : "Waiting...";
     
     if (myTurn) {
-        hasDrawn = false;
-        // Logic to ensure Pass Button remains visible based on your preference
+        // Reset local draw flag whenever it becomes your turn
+        hasDrawn = false; 
         document.getElementById('pass-btn').style.display = 'inline-block';
+    } else {
+        document.getElementById('pass-btn').style.display = 'none';
     }
 }
 
@@ -105,7 +105,7 @@ function renderTop(c) {
     el.innerHTML = `<span>${c.type}</span>`;
 }
 
-// Tournament Results (Rule #13)
+// Tournament Results
 socket.on('tournamentResults', data => {
     const list = document.getElementById('score-list');
     list.innerHTML = data.order.map((id, i) => `

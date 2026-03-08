@@ -38,13 +38,24 @@ function createDeck() {
 
 function shuffle(arr) { return arr.sort(() => Math.random() - 0.5); }
 
+// FIXED: Bug #1 - 2-Player Skip/Reverse logic
 function nextTurn(skip = 1) {
     let playersCount = players.length;
     let attempts = 0;
-    currentPlayerIndex = (currentPlayerIndex + (direction * skip) + playersCount) % playersCount;
-    while (finishOrder.includes(players[currentPlayerIndex].id) && attempts < playersCount) {
-        currentPlayerIndex = (currentPlayerIndex + direction + playersCount) % playersCount;
-        attempts++;
+    
+    // Check how many players are still in the game
+    const activePlayers = players.filter(p => !finishOrder.includes(p.id));
+
+    // Special Rule: If only 2 players left, Skip and Reverse = Go Again
+    if (activePlayers.length === 2 && skip > 1) {
+        // We do NOT move the currentPlayerIndex
+        console.log("2-Player Rule: Skip/Reverse applied. Turn stays.");
+    } else {
+        currentPlayerIndex = (currentPlayerIndex + (direction * skip) + playersCount) % playersCount;
+        while (finishOrder.includes(players[currentPlayerIndex].id) && attempts < playersCount) {
+            currentPlayerIndex = (currentPlayerIndex + direction + playersCount) % playersCount;
+            attempts++;
+        }
     }
 }
 
@@ -79,6 +90,16 @@ function updateAll() {
             scores: scores
         });
     });
+}
+
+// Helper: Reshuffle discard pile if deck is empty
+function checkDeck() {
+    if (deck.length < 5) {
+        const top = discardPile.pop();
+        deck = shuffle([...deck, ...discardPile]);
+        discardPile = [top];
+        console.log("Deck reshuffled.");
+    }
 }
 
 io.on('connection', (socket) => {
@@ -125,6 +146,7 @@ io.on('connection', (socket) => {
                 setTimeout(() => {
                     const pCheck = players.find(p => p.id === player.id);
                     if (pCheck && pCheck.hand.length === 1 && !pCheck.saidUno) {
+                        checkDeck(); // Ensure cards available
                         for (let i = 0; i < 2; i++) {
                             if (deck.length > 0) pCheck.hand.push(deck.shift());
                         }
@@ -136,20 +158,27 @@ io.on('connection', (socket) => {
 
             if (player.hand.length === 0 && !finishOrder.includes(player.id)) {
                 finishOrder.push(player.id);
-                io.emit('status', `Player ${player.id.substring(0,4)} finished! Rank: ${finishOrder.length}`);
+                io.emit('status', `Player ${player.id.substring(0,4)} finished!`);
 
                 if (finishOrder.length >= players.length - 1) {
                     const lastPlayer = players.find(p => !finishOrder.includes(p.id));
                     if (lastPlayer) finishOrder.push(lastPlayer.id);
-
                     io.emit('tournamentResults', { order: finishOrder });
                     gameStarted = false; 
                     return; 
                 }
             }
 
-            if (card.type === 'Reverse') direction *= -1;
-            nextTurn(card.type === 'Skip' ? 2 : 1);
+            if (card.type === 'Reverse') {
+                if (players.filter(p => !finishOrder.includes(p.id)).length === 2) {
+                    nextTurn(2); // Acts as a Skip
+                } else {
+                    direction *= -1;
+                    nextTurn(1);
+                }
+            } else {
+                nextTurn(card.type === 'Skip' ? 2 : 1);
+            }
             updateAll();
         }
     });
@@ -166,6 +195,8 @@ io.on('connection', (socket) => {
         const pIdx = players.findIndex(p => p.id === socket.id);
         if (pIdx !== currentPlayerIndex) return;
         let player = players[pIdx];
+
+        checkDeck(); // FIXED: Reshuffle if deck is low
 
         if (stackCount > 0) {
             for (let i = 0; i < stackCount; i++) {
@@ -190,7 +221,7 @@ io.on('connection', (socket) => {
         const pIdx = players.findIndex(p => p.id === socket.id);
         if (pIdx === currentPlayerIndex) {
             if (!players[pIdx].lastDrawnCard) {
-                return socket.emit('status', "You must draw a card before passing!");
+                return socket.emit('status', "You must draw first!");
             }
             players[pIdx].lastDrawnCard = null;
             nextTurn();
