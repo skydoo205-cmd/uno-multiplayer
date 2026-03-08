@@ -73,9 +73,10 @@ function setTurn(id) {
     myTurn = (socket.id === id);
     const status = document.getElementById('status');
     status.innerText = myTurn ? "YOUR TURN!" : "Waiting...";
-    status.style.color = myTurn ? "#2ecc71" : "white";
+    
     if (myTurn) {
         hasDrawn = false;
+        // Hide only the pass button at start of turn, keep UNO visible
         document.getElementById('pass-btn').style.display = 'none';
     }
 }
