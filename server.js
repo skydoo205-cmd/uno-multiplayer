@@ -64,43 +64,61 @@ io.on('connection', (socket) => {
         });
     }
 
-   socket.on('playCard', (data) => {
+ socket.on('playCard', (data) => {
         const pIdx = players.findIndex(p => p.id === socket.id);
-        if (pIdx !== currentPlayerIndex) return;
+        if (pIdx !== currentPlayerIndex || finishOrder.includes(socket.id)) return;
 
         let player = players[pIdx];
         let card = player.hand[data.index];
         let top = discardPile[discardPile.length - 1];
 
-        // NEW RULE: If they just drew a card, they can ONLY play that specific card
+        // Ensure the "must play drawn card" rule doesn't block them if they didn't just draw
         if (player.lastDrawnCard && card !== player.lastDrawnCard) {
             return socket.emit('status', "You must play the card you just drew or pass!");
         }
 
-// Valid Move Logic
+        // VALID MOVE LOGIC: Compares against the top card's updated color
         if (card.color === top.color || card.type === top.type || card.color === 'black') {
             
-            // --- NEW STACKING RESTRICTION ---
-            // If a +4 is currently being stacked, you can ONLY play another +4
+            // Stacking restriction for +4
             if (stackCount > 0 && top.type === '+4' && card.type !== '+4') {
                 return socket.emit('status', "You can only play a +4 on top of a +4!");
             }
-            // --------------------------------
 
-            if (card.color === 'black') card.color = data.chosenColor;
-            
-            // Stacking Logic
+            // --- THE COLOR FIX ---
+            // If the card being played is black, we change its color property 
+            // to the chosen color BEFORE it becomes the new "top" card.
+            if (card.color === 'black') {
+                card.color = data.chosenColor; 
+            }
+            // ---------------------
+
             if (card.type === '+2') stackCount += 2;
             if (card.type === '+4') stackCount += 4;
 
             player.hand.splice(data.index, 1);
             discardPile.push(card);
+            player.lastDrawnCard = null; // Clear restriction for the next turn
 
-            // Special Cards
+            // Win Condition
+            if (player.hand.length === 0) {
+                finishOrder.push(socket.id);
+                const points = [3, 2, 1, 0];
+                scores[socket.id] += points[finishOrder.length - 1];
+
+                if (finishOrder.length === 3) {
+                    const lastPlayer = players.find(p => !finishOrder.includes(p.id));
+                    finishOrder.push(lastPlayer.id);
+                    gameStarted = false;
+                    return io.emit('tournamentResults', { order: finishOrder, allScores: scores });
+                }
+            }
+
+            // Turn Handling
             if (card.type === 'Reverse') direction *= -1;
             let skip = (card.type === 'Skip') ? 2 : 1;
-            
             nextTurn(skip);
+
             io.emit('update', { 
                 topCard: card, 
                 turnId: players[currentPlayerIndex].id,
@@ -125,18 +143,24 @@ io.on('connection', (socket) => {
                 }
                 player.hand.push(deck.shift());
             }
+            
+            // --- FIX IS HERE ---
             stackCount = 0;
-            player.lastDrawnCard = null; // Reset restriction after penalty
-            nextTurn();
-            // ... (rest of your existing update emit)
+            player.lastDrawnCard = null; 
+            nextTurn(); 
+
+            // This line tells everyone that the turn has changed!
+            io.emit('update', { 
+                topCard: discardPile[discardPile.length - 1], 
+                turnId: players[currentPlayerIndex].id,
+                stack: 0
+            });
+            // -------------------
         } else {
             // Normal Draw
             const drawnCard = deck.shift();
             player.hand.push(drawnCard);
-            
-            // NEW RULE: Remember the card they just drew
             player.lastDrawnCard = drawnCard; 
-            
             socket.emit('canPass');
         }
         socket.emit('hand', player.hand);
