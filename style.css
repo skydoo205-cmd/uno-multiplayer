@@ -61,11 +61,11 @@ body {
     justify-content: center;
     align-items: center;
     gap: 20px; 
-    margin: 20px 0;
-    flex-wrap: wrap; 
+    margin: 10px auto;
+    width: 100%;
+    min-height: 80px; /* Forces space to exist even if buttons are hidden */
     position: relative;
-    z-index: 9999 !important; /* Ensures buttons are never hidden behind cards */
-    padding: 15px;
+    z-index: 10001 !important; 
 }
 
 #uno-btn, #pass-btn {
@@ -77,6 +77,23 @@ body {
     transition: transform 0.1s;
     min-width: 140px; 
     font-family: inherit;
+}
+
+/* Explicitly different colors */
+#uno-btn { 
+    background: #c0392b; 
+    color: white; 
+    display: inline-block; 
+}
+
+#pass-btn { 
+    background: #e67e22; /* Bright Orange */
+    color: white; 
+    display: none; /* Controlled by socket.on('canPass') */
+}
+
+#uno-btn:active, #pass-btn:active {
+    transform: scale(0.95);
 }
 
 #uno-btn { background: #c0392b; color: white; display: block; }

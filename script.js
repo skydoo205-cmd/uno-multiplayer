@@ -77,14 +77,14 @@ document.getElementById('draw-pile').onclick = () => {
 
 // Ensure this is NOT inside any other function
 socket.on('canPass', () => {
-    console.log("Received canPass from server"); // Check your F12 console for this!
     hasDrawn = true;
     const passBtn = document.getElementById('pass-btn');
     if (passBtn) {
-        passBtn.style.display = 'block'; // Force visibility
-        console.log("Pass button should now be visible");
+        // FORCE visibility and move it to the top so it's not hidden behind cards
+        passBtn.setAttribute('style', 'display: block !important; position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 10002;');
+        console.log("PASS BUTTON FORCED TO SCREEN CENTER");
     } else {
-        console.error("Could not find element with ID 'pass-btn'");
+        alert("ERROR: HTML element 'pass-btn' not found!");
     }
 });
 
