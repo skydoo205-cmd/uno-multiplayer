@@ -53,13 +53,15 @@ window.chooseColor = (color) => {
     socket.emit('playCard', { index: pendingIndex, chosenColor: color });
 };
 
-// --- REPLACE YOUR TURN ACTIONS WITH THIS ---
+// --- TURN ACTIONS ---
 
 // Function for the Pass Button (Rule #7)
 window.passTurn = () => {
     if (!myTurn) return;
     socket.emit('pass');
-    document.getElementById('pass-btn').style.display = 'none'; // Hide after click
+    // Hide the button after use
+    document.getElementById('pass-btn').style.display = 'none';
+    document.getElementById('pass-btn').removeAttribute('style'); // Clear force-style
 };
 
 // Function for the Uno Button (Rule #9)
@@ -75,12 +77,12 @@ document.getElementById('draw-pile').onclick = () => {
     if(myTurn && !hasDrawn) socket.emit('draw'); 
 };
 
-// Ensure this is NOT inside any other function
+// Listen for Pass Signal from Server
 socket.on('canPass', () => {
     hasDrawn = true;
     const passBtn = document.getElementById('pass-btn');
     if (passBtn) {
-        // FORCE visibility and move it to the top so it's not hidden behind cards
+        // FORCE visibility to center screen to ensure it's not hidden
         passBtn.setAttribute('style', 'display: block !important; position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 10002;');
         console.log("PASS BUTTON FORCED TO SCREEN CENTER");
     } else {
@@ -102,8 +104,10 @@ function setTurn(id) {
     
     if (myTurn) {
         hasDrawn = false;
-        // Hide only the pass button at start of turn, keep UNO visible
-        document.getElementById('pass-btn').style.display = 'none';
+        // Reset pass button visibility at start of turn
+        const passBtn = document.getElementById('pass-btn');
+        passBtn.style.display = 'none';
+        passBtn.removeAttribute('style'); 
     }
 }
 

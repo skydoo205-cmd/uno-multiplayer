@@ -17,6 +17,7 @@ body {
     padding: 20px; 
     text-align: left; 
 }
+
 .stat-row { 
     padding: 10px; 
     margin-bottom: 5px; 
@@ -42,6 +43,7 @@ body {
     transition: 0.2s; 
     vertical-align: middle;
 }
+
 .card:hover { 
     transform: translateY(-10px); 
     box-shadow: 0 10px 20px rgba(0,0,0,0.5); 
@@ -55,50 +57,45 @@ body {
 .black { background: #222; } 
 .back { background: #555; border-color: #777; }
 
-/* --- Game Controls (Uno & Pass) --- */
+/* --- Game Controls (Uno Left, Pass Right) --- */
 #controls {
     display: flex;
-    justify-content: center;
+    justify-content: space-between; /* Pushes buttons to the far edges of the container */
     align-items: center;
-    gap: 20px; 
-    margin: 10px auto;
-    width: 100%;
-    min-height: 80px; /* Forces space to exist even if buttons are hidden */
+    margin: 20px auto;
+    width: 90%; /* Adjust this percentage to control how far apart the buttons are */
+    max-width: 800px;
+    min-height: 80px;
     position: relative;
     z-index: 10001 !important; 
 }
 
 #uno-btn, #pass-btn {
-    padding: 12px 25px;
-    border-radius: 25px;
+    padding: 15px 30px;
+    border-radius: 30px;
     font-weight: bold;
     cursor: pointer;
     border: 3px solid #fff;
     transition: transform 0.1s;
-    min-width: 140px; 
+    min-width: 160px; 
     font-family: inherit;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
-/* Explicitly different colors */
 #uno-btn { 
     background: #c0392b; 
     color: white; 
-    display: inline-block; 
 }
 
 #pass-btn { 
     background: #e67e22; /* Bright Orange */
     color: white; 
-    display: none; /* Controlled by socket.on('canPass') */
+    display: none; /* Controlled by socket.on('canPass') in script.js */
 }
 
 #uno-btn:active, #pass-btn:active {
     transform: scale(0.95);
 }
-
-#uno-btn { background: #c0392b; color: white; display: block; }
-#pass-btn { background: #e67e22; color: white; display: none; }
-#uno-btn:active, #pass-btn:active { transform: scale(0.95); }
 
 /* --- Color Picker Overlay --- */
 #color-picker {
@@ -106,7 +103,7 @@ body {
     top: 0; left: 0; 
     width: 100%; height: 100%;
     background: rgba(0,0,0,0.9); 
-    display: none; /* Controlled by script.js */
+    display: none; 
     flex-direction: column; 
     justify-content: center; 
     align-items: center; 
@@ -125,6 +122,7 @@ body {
     cursor: pointer;
     transition: transform 0.2s;
 }
+
 .color-btns button:hover { transform: scale(1.1); }
 
 .btn-red { background-color: #e74c3c; }
@@ -138,5 +136,19 @@ body {
     background: rgba(0,0,0,0.85); display: none; 
     justify-content: center; align-items: center; z-index: 10000;
 }
-#scoreboard-content { background: #2c3e50; padding: 40px; border-radius: 20px; border: 3px solid gold; }
-.score-row { display: flex; justify-content: space-between; width: 300px; padding: 10px; margin: 5px; background: #34495e; }
+
+#scoreboard-content { 
+    background: #2c3e50; 
+    padding: 40px; 
+    border-radius: 20px; 
+    border: 3px solid gold; 
+}
+
+.score-row { 
+    display: flex; 
+    justify-content: space-between; 
+    width: 300px; 
+    padding: 10px; 
+    margin: 5px; 
+    background: #34495e; 
+}
