@@ -77,18 +77,23 @@ document.getElementById('draw-pile').onclick = () => {
     if(myTurn && !hasDrawn) socket.emit('draw'); 
 };
 
-// Listen for Pass Signal from Server
-socket.on('canPass', () => {
-    hasDrawn = true;
-    const passBtn = document.getElementById('pass-btn');
-    if (passBtn) {
-        // FORCE visibility to center screen to ensure it's not hidden
-        passBtn.setAttribute('style', 'display: block !important; position: fixed; top: 100px; left: 50%; transform: translateX(-50%); z-index: 10002;');
-        console.log("PASS BUTTON FORCED TO SCREEN CENTER");
-    } else {
-        alert("ERROR: HTML element 'pass-btn' not found!");
+window.passTurn = () => {
+    if (!myTurn) return;
+    // We just emit the pass; the server will check if it's allowed
+    socket.emit('pass'); 
+};
+
+function setTurn(id) {
+    myTurn = (socket.id === id);
+    const status = document.getElementById('status');
+    status.innerText = myTurn ? "YOUR TURN!" : "Waiting...";
+    
+    if (myTurn) {
+        hasDrawn = false;
+        // DELETE THE LINE BELOW
+        // document.getElementById('pass-btn').style.display = 'none'; 
     }
-});
+}
 
 // UI Helpers
 function renderTop(c) {

@@ -89,9 +89,12 @@ body {
 #pass-btn { 
     background: #e67e22; 
     color: white; 
-    display: none; 
-    border: 3px solid white;
-    box-shadow: 0 0 15px rgba(230, 126, 34, 0.5); /* Make it glow so you see it */
+    display: inline-block; /* Changed from none to inline-block */
+    padding: 12px 25px;
+    border-radius: 25px;
+    font-weight: bold;
+    cursor: pointer;
+    border: 3px solid #fff;
 }
 
 #uno-btn:active, #pass-btn:active {
