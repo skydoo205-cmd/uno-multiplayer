@@ -55,12 +55,23 @@ function resetGame() {
     currentPlayerIndex = 0;
     direction = 1;
     deck = shuffle(createDeck());
+
     players.forEach(p => {
-        p.hand = deck.splice(0, 10);
+        p.hand = deck.splice(0, 7); // Standard 7 cards
         p.lastDrawnCard = null;
     });
-    let startIdx = deck.findIndex(c => c.color !== 'black' && !isNaN(c.type));
-    discardPile = [deck.splice(startIdx, 1)[0]];
+
+    // RULE: The game MUST start with a colored number card (0-9).
+    // This loop removes cards from the deck until a non-power card is found.
+    let firstCard = deck.shift();
+    const powerCards = ['Skip', 'Reverse', '+2', '+4', 'Wild'];
+
+    while (powerCards.includes(firstCard.type) || firstCard.color === 'black') {
+        deck.push(firstCard); // Put the power card back at the bottom
+        firstCard = deck.shift(); // Try the next one
+    }
+
+    discardPile = [firstCard];
     updateAll();
 }
 
