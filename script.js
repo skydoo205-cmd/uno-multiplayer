@@ -3,7 +3,7 @@ let myTurn = false;
 let hasDrawn = false;
 let pendingIndex = null;
 
-// --- Updates & Initialization ---
+// Handle Game Start and Updates
 socket.on('init', data => {
     document.getElementById('scoreboard-overlay').style.display = 'none';
     renderHand(data.hand);
@@ -14,20 +14,20 @@ socket.on('init', data => {
 
 socket.on('status', msg => {
     document.getElementById('status').innerText = msg;
-    if (msg.includes("Restart Votes")) document.getElementById('vote-count').innerText = msg;
 });
 
-// Rule #10: Real-time Card Counts
+// Update Sidebar (Rule #10)
 function updateStats(counts) {
     const list = document.getElementById('stats-list');
     list.innerHTML = counts.map(p => `
         <div class="stat-row">
-            Player ${p.id.substring(0,4)}: <strong>${p.count} cards</strong>
+            Player ${p.id.substring(0,4)}<br>
+            <strong>${p.count} Cards</strong>
         </div>
     `).join('');
 }
 
-// --- Player Actions ---
+// Card Management
 function renderHand(hand) {
     const cont = document.getElementById('my-hand');
     cont.innerHTML = '';
@@ -35,56 +35,34 @@ function renderHand(hand) {
         const div = document.createElement('div');
         div.className = `card ${c.color}`;
         div.innerHTML = `<span>${c.type}</span>`;
-        div.onclick = () => play(i, c.color);
+        div.onclick = () => {
+            if (!myTurn) return;
+            if (c.color === 'black') {
+                pendingIndex = i;
+                document.getElementById('color-picker').style.display = 'flex';
+            } else {
+                socket.emit('playCard', { index: i });
+            }
+        };
         cont.appendChild(div);
     });
 }
 
-function play(i, color) {
-    if (!myTurn) return;
-    if (color === 'black') {
-        pendingIndex = i;
-        document.getElementById('color-picker').style.display = 'block';
-    } else {
-        socket.emit('playCard', { index: i });
-    }
-}
-
-window.chooseColor = (c) => {
+window.chooseColor = (color) => {
     document.getElementById('color-picker').style.display = 'none';
-    socket.emit('playCard', { index: pendingIndex, chosenColor: c });
+    socket.emit('playCard', { index: pendingIndex, chosenColor: color });
 };
 
-// Rule #6: Choose to Draw or Stack
-document.getElementById('draw-pile').onclick = () => {
-    if (myTurn && !hasDrawn) socket.emit('draw');
-};
+// Turn Actions
+document.getElementById('draw-pile').onclick = () => { if(myTurn && !hasDrawn) socket.emit('draw'); };
+document.getElementById('pass-btn').onclick = () => { socket.emit('pass'); };
 
-// Rule #9: Say UNO
-window.sayUno = () => {
-    socket.emit('sayUno');
-    document.getElementById('status').innerText = "YOU SAID UNO!";
-};
-
-function passTurn() { socket.emit('pass'); }
 socket.on('canPass', () => {
     hasDrawn = true;
     document.getElementById('pass-btn').style.display = 'block';
 });
 
-// --- Tournament Logic ---
-socket.on('tournamentResults', data => {
-    const scoreList = document.getElementById('score-list');
-    scoreList.innerHTML = data.order.map((id, index) => {
-        const pts = [3, 2, 1, 0][index];
-        return `<div class="score-row"><span>${index+1}. Player ${id.substring(0,4)}</span><span>+${pts} pts (Total: ${data.allScores[id]})</span></div>`;
-    }).join('');
-    document.getElementById('scoreboard-overlay').style.display = 'flex';
-});
-
-window.requestRestart = () => socket.emit('requestRestart');
-window.exitGame = () => { if(confirm("End tournament?")) socket.emit('exitGame'); };
-
+// UI Helpers
 function renderTop(c) {
     const el = document.getElementById('top-card');
     el.className = `card ${c.color}`;
@@ -96,5 +74,23 @@ function setTurn(id) {
     const status = document.getElementById('status');
     status.innerText = myTurn ? "YOUR TURN!" : "Waiting...";
     status.style.color = myTurn ? "#2ecc71" : "white";
-    if (myTurn) hasDrawn = false;
+    if (myTurn) {
+        hasDrawn = false;
+        document.getElementById('pass-btn').style.display = 'none';
+    }
 }
+
+// Tournament Results (Rule #13)
+socket.on('tournamentResults', data => {
+    const list = document.getElementById('score-list');
+    list.innerHTML = data.order.map((id, i) => `
+        <div class="score-row">
+            <span>${i+1}. Player ${id.substring(0,4)}</span>
+            <span>+${[3,2,1,0][i]} Points</span>
+        </div>
+    `).join('');
+    document.getElementById('scoreboard-overlay').style.display = 'flex';
+});
+
+window.requestRestart = () => socket.emit('requestRestart');
+window.exitGame = () => { if(confirm("Exit?")) socket.emit('exitGame'); };

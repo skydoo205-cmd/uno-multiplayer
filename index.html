@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UNO Tournament Master</title>
+    <title>UNO Tournament</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="game-container">
         <div id="sidebar">
-            <h3>Card Counts</h3>
+            <h3>Players</h3>
             <div id="stats-list"></div>
         </div>
 
         <div id="main-play-area">
-            <h1>UNO Multiplayer</h1>
+            <h1 id="game-title">UNO Multiplayer</h1>
             <div id="status">Waiting for players (0/4)...</div>
 
             <div id="deck-area">
@@ -25,16 +25,17 @@
             </div>
 
             <div id="controls">
-                <button id="uno-btn" onclick="sayUno()">SAY UNO!</button>
-                <button id="pass-btn" style="display:none;" onclick="passTurn()">PASS TURN</button>
+                <button id="pass-btn" style="display:none;">Pass Turn</button>
             </div>
 
             <div id="color-picker">
                 <p>Pick a Color:</p>
-                <button onclick="chooseColor('red')" class="btn-red"></button>
-                <button onclick="chooseColor('blue')" class="btn-blue"></button>
-                <button onclick="chooseColor('green')" class="btn-green"></button>
-                <button onclick="chooseColor('yellow')" class="btn-yellow"></button>
+                <div class="color-btns">
+                    <button onclick="chooseColor('red')" class="btn-red"></button>
+                    <button onclick="chooseColor('blue')" class="btn-blue"></button>
+                    <button onclick="chooseColor('green')" class="btn-green"></button>
+                    <button onclick="chooseColor('yellow')" class="btn-yellow"></button>
+                </div>
             </div>
 
             <hr>
@@ -48,10 +49,9 @@
             <h2>Tournament Results</h2>
             <div id="score-list"></div>
             <div class="score-buttons">
-                <button onclick="requestRestart()" class="restart-btn">Restart Game</button>
-                <button onclick="exitGame()" class="exit-btn">Exit Tournament</button>
+                <button onclick="requestRestart()" class="restart-btn">Restart</button>
+                <button onclick="exitGame()" class="exit-btn">Exit</button>
             </div>
-            <p id="vote-count">Votes: 0/4</p>
         </div>
     </div>
 

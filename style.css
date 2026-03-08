@@ -1,37 +1,31 @@
-body { background: #1a1a1a; color: white; font-family: sans-serif; text-align: center; margin: 0; }
+body { background: #1a1a1a; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; }
+#game-container { display: flex; min-height: 100vh; }
 
-#game-container { display: flex; padding: 20px; min-height: 100vh; }
-#sidebar { width: 200px; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; border: 1px solid #444; }
-#main-play-area { flex-grow: 1; }
+/* Sidebar Styles */
+#sidebar { width: 220px; background: #222; border-right: 2px solid #444; padding: 20px; text-align: left; }
+.stat-row { padding: 10px; margin-bottom: 5px; background: #333; border-radius: 5px; border-left: 4px solid gold; }
 
+#main-play-area { flex-grow: 1; padding: 20px; }
+
+/* Card Styles */
 .card {
-    width: 90px; height: 130px; border: 3px solid white; border-radius: 10px;
-    display: inline-block; margin: 5px; line-height: 130px; font-size: 20px;
+    width: 100px; height: 150px; border: 4px solid white; border-radius: 12px;
+    display: inline-block; margin: 10px; line-height: 150px; font-size: 28px;
     font-weight: bold; cursor: pointer; transition: 0.2s; vertical-align: middle;
 }
-.card:hover { transform: translateY(-10px); box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+.card:hover { transform: translateY(-10px); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
 
-/* Colors */
+/* Card Colors */
 .red { background: #e74c3c; } .blue { background: #3498db; }
 .green { background: #2ecc71; } .yellow { background: #f1c40f; color: black; }
-.black { background: #222; } .back { background: #555; }
+.black { background: #222; } .back { background: #555; border-color: #777; }
 
-/* Rule #9: UNO Button */
-#uno-btn { 
-    background: #c0392b; color: white; border: 2px solid white; 
-    padding: 15px 30px; border-radius: 30px; font-weight: bold; cursor: pointer;
-}
-
-#color-picker {
-    display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    background: white; padding: 20px; border-radius: 15px; z-index: 1000;
-}
-#color-picker button { width: 50px; height: 50px; border: none; margin: 5px; border-radius: 50%; cursor: pointer; }
-
-/* Scoreboard */
-#scoreboard-overlay {
+/* Overlays */
+#color-picker, #scoreboard-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 2000;
+    background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 1000;
 }
 #scoreboard-content { background: #2c3e50; padding: 40px; border-radius: 20px; border: 3px solid gold; }
-.score-row { display: flex; justify-content: space-between; width: 300px; margin: 10px auto; padding: 10px; background: rgba(255,255,255,0.1); }
+.score-row { display: flex; justify-content: space-between; width: 300px; padding: 10px; margin: 5px; background: #34495e; }
+
+#pass-btn { background: #e67e22; color: white; border: none; padding: 15px 30px; border-radius: 5px; cursor: pointer; font-size: 1.1rem; }
