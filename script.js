@@ -74,11 +74,17 @@ window.sayUno = () => {
 document.getElementById('draw-pile').onclick = () => { 
     if(myTurn && !hasDrawn) socket.emit('draw'); 
 };
-
-// Server signal to show the Pass button
+// Ensure this is NOT inside any other function
 socket.on('canPass', () => {
+    console.log("Received canPass from server"); // Check your F12 console for this!
     hasDrawn = true;
-    document.getElementById('pass-btn').style.display = 'block';
+    const passBtn = document.getElementById('pass-btn');
+    if (passBtn) {
+        passBtn.style.display = 'block'; // Force visibility
+        console.log("Pass button should now be visible");
+    } else {
+        console.error("Could not find element with ID 'pass-btn'");
+    }
 });
 
 // UI Helpers
