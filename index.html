@@ -26,32 +26,31 @@
 
             <div id="controls">
                  <button id="uno-btn" onclick="sayUno()">SAY UNO!</button>
-                <button id="pass-btn" style="display:none;" onclick="passTurn()">PASS TURN</button>
+                 <button id="pass-btn" style="display:none;" onclick="passTurn()">PASS TURN</button>
             </div>
 
             <div id="color-picker">
-                <p>Pick a Color:</p>
-                <div class="color-btns">
-                    <button onclick="chooseColor('red')" class="btn-red"></button>
-                    <button onclick="chooseColor('blue')" class="btn-blue"></button>
-                    <button onclick="chooseColor('green')" class="btn-green"></button>
-                    <button onclick="chooseColor('yellow')" class="btn-yellow"></button>
+                <div class="picker-content">
+                    <p>Pick a Color:</p>
+                    <div class="color-btns">
+                        <button onclick="chooseColor('red')" class="btn-red"></button>
+                        <button onclick="chooseColor('blue')" class="btn-blue"></button>
+                        <button onclick="chooseColor('green')" class="btn-green"></button>
+                        <button onclick="chooseColor('yellow')" class="btn-yellow"></button>
+                    </div>
                 </div>
             </div>
 
             <hr>
             <h3>Your Hand</h3>
             <div id="my-hand"></div>
-        </div>
-    </div>
-
-    <div id="scoreboard-overlay" style="display:none;">
+        </div> </div> <div id="scoreboard-overlay" style="display:none;">
         <div id="scoreboard-content">
             <h2>Tournament Results</h2>
             <div id="score-list"></div>
             <div class="score-buttons">
                 <button onclick="requestRestart()" class="restart-btn">Restart</button>
-                <button onclick="exitGame()" class="exit-btn">Exit</button>
+                <button onclick="exitGame()" class="exit-btn">Exit Game</button>
             </div>
         </div>
     </div>

@@ -74,6 +74,7 @@ window.sayUno = () => {
 document.getElementById('draw-pile').onclick = () => { 
     if(myTurn && !hasDrawn) socket.emit('draw'); 
 };
+
 // Ensure this is NOT inside any other function
 socket.on('canPass', () => {
     console.log("Received canPass from server"); // Check your F12 console for this!
