@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate UNO Multiplayer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <h1>UNO Multiplayer</h1>
+        <div id="status">Waiting for players (0/4)...</div>
+
+        <div id="deck-area">
+            <div id="draw-pile" class="card back">Deck</div>
+            <div id="top-card-container">
+                <div id="top-card" class="card">?</div>
+            </div>
+        </div>
+
+        <div id="controls">
+            <button id="pass-btn" style="display:none;">Pass Turn</button>
+        </div>
+
+        <div id="color-picker">
+            <p>Select New Color:</p>
+            <button onclick="chooseColor('red')" class="btn-red"></button>
+            <button onclick="chooseColor('blue')" class="btn-blue"></button>
+            <button onclick="chooseColor('green')" class="btn-green"></button>
+            <button onclick="chooseColor('yellow')" class="btn-yellow"></button>
+        </div>
+
+        <hr>
+        <h3>Your Hand</h3>
+        <div id="my-hand"></div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
