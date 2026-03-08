@@ -30,19 +30,17 @@ body {
 
 /* --- Updated Card Styles --- */
 .card {
-    flex: 0 1 auto; /* Allows cards to shrink if space is tight */
-    width: 80px; /* Reduced from 100px to fit 10 cards */
-    height: 120px; /* Reduced height to save vertical space */
-    border: 4px solid white; 
-    border-radius: 12px;
+    flex: 0 1 auto; 
+    width: 70px; /* Reduced from 80px */
+    height: 100px; /* Reduced from 150px to save vertical space */
+    border: 3px solid white; 
+    border-radius: 8px;
     display: inline-block; 
-    margin: 5px; /* Reduced margin */
-    line-height: 120px; 
-    font-size: 22px; /* Smaller font for smaller cards */
+    margin: 5px; 
+    line-height: 100px; /* Match new height */
+    font-size: 18px; /* Smaller font for smaller cards */
     font-weight: bold; 
     cursor: pointer; 
-    transition: 0.2s; 
-    vertical-align: middle;
 }
 
 .card:hover { 
@@ -61,14 +59,14 @@ body {
 /* --- Game Controls (Uno Left, Pass Right) --- */
 #controls {
     display: flex;
-    justify-content: space-between; /* Pushes buttons to the far edges of the container */
+    justify-content: space-between; 
     align-items: center;
-    margin: 20px auto;
-    width: 90%; /* Adjust this percentage to control how far apart the buttons are */
+    margin: 10px auto; /* Reduced margin to pull it up */
+    width: 90%;
     max-width: 800px;
-    min-height: 80px;
+    min-height: 60px; /* Slimmer container */
     position: relative;
-    z-index: 10001 !important; 
+    z-index: 99999 !important; /* Ensure it stays above the hand */
 }
 
 #uno-btn, #pass-btn {
@@ -89,9 +87,11 @@ body {
 }
 
 #pass-btn { 
-    background: #e67e22; /* Bright Orange */
+    background: #e67e22; 
     color: white; 
-    display: none; /* Controlled by socket.on('canPass') in script.js */
+    display: none; 
+    border: 3px solid white;
+    box-shadow: 0 0 15px rgba(230, 126, 34, 0.5); /* Make it glow so you see it */
 }
 
 #uno-btn:active, #pass-btn:active {
