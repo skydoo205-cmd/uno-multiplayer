@@ -16,6 +16,12 @@ let direction = 1;
 let gameStarted = false;
 let stackCount = 0;
 
+// Tournament & State Tracking
+let scores = {}; 
+let finishOrder = [];
+let restartVotes = new Set();
+let unoTimers = {}; // Tracks the 5-second UNO window
+
 function createDeck() {
     const colors = ['red', 'blue', 'green', 'yellow'];
     const types = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'Skip', 'Reverse', '+2'];
@@ -35,36 +41,72 @@ function createDeck() {
 
 function shuffle(arr) { return arr.sort(() => Math.random() - 0.5); }
 
+// Rule #8: Intelligent Reshuffle
+function checkDeck() {
+    if (deck.length <= 5) {
+        const topCard = discardPile.pop();
+        deck = shuffle([...discardPile]);
+        discardPile = [topCard];
+        io.emit('status', "Deck reshuffled!");
+    }
+}
+
+// Rule #12: Skip finished players
 function nextTurn(skip = 1) {
-    currentPlayerIndex = (currentPlayerIndex + (direction * skip) + players.length) % players.length;
+    let attempts = 0;
+    do {
+        currentPlayerIndex = (currentPlayerIndex + (direction * skip) + players.length) % players.length;
+        skip = 1; 
+        attempts++;
+    } while (finishOrder.includes(players[currentPlayerIndex].id) && attempts < players.length);
+}
+
+// Rule #1, #2: Start with 10 cards and a number card
+function resetGame() {
+    finishOrder = [];
+    restartVotes.clear();
+    gameStarted = true;
+    stackCount = 0;
+    currentPlayerIndex = 0;
+    direction = 1;
+    deck = shuffle(createDeck());
+    
+    players.forEach(p => {
+        p.hand = deck.splice(0, 10); // Rule #1
+        p.lastDrawnCard = null;
+        p.saidUno = false;
+    });
+    
+    // Rule #2: Find a starting number card
+    let startIdx = deck.findIndex(c => c.color !== 'black' && !isNaN(c.type));
+    discardPile = [deck.splice(startIdx, 1)[0]];
+
+    updateAll();
+}
+
+function updateAll() {
+    const playerCardCounts = players.map(p => ({ id: p.id, count: p.hand.length })); // Rule #10
+    players.forEach(p => {
+        io.to(p.id).emit('init', { 
+            hand: p.hand, 
+            topCard: discardPile[discardPile.length - 1], 
+            turnId: players[currentPlayerIndex].id,
+            cardCounts: playerCardCounts,
+            scores: scores
+        });
+    });
 }
 
 io.on('connection', (socket) => {
-    console.log("A player connected:", socket.id);
-
     if (players.length < 4) {
-        players.push({ id: socket.id, hand: [] });
+        players.push({ id: socket.id, hand: [], lastDrawnCard: null, saidUno: false });
+        scores[socket.id] = scores[socket.id] || 0;
         io.emit('status', `Players: ${players.length}/4`);
     }
 
-    if (players.length === 4 && !gameStarted) {
-        gameStarted = true;
-        deck = shuffle(createDeck());
-        players.forEach(p => p.hand = deck.splice(0, 10));
-        
-        let startIdx = deck.findIndex(c => c.color !== 'black' && !isNaN(c.type));
-        discardPile.push(deck.splice(startIdx, 1)[0]);
+    if (players.length === 4 && !gameStarted) resetGame();
 
-        players.forEach(p => {
-            io.to(p.id).emit('init', { 
-                hand: p.hand, 
-                topCard: discardPile[0], 
-                turnId: players[0].id 
-            });
-        });
-    }
-
- socket.on('playCard', (data) => {
+    socket.on('playCard', (data) => {
         const pIdx = players.findIndex(p => p.id === socket.id);
         if (pIdx !== currentPlayerIndex || finishOrder.includes(socket.id)) return;
 
@@ -72,127 +114,103 @@ io.on('connection', (socket) => {
         let card = player.hand[data.index];
         let top = discardPile[discardPile.length - 1];
 
-        // Ensure the "must play drawn card" rule doesn't block them if they didn't just draw
-        if (player.lastDrawnCard && card !== player.lastDrawnCard) {
-            return socket.emit('status', "You must play the card you just drew or pass!");
+        // Rule #7: Draw-to-play restriction
+        if (player.lastDrawnCard && card !== player.lastDrawnCard) return;
+
+        // Rule #4: Stacking logic (+2 can't go on +4)
+        if (stackCount > 0 && top.type === '+4' && card.type === '+2') {
+            return socket.emit('status', "Cannot play +2 on a +4 stack!");
         }
 
-        // VALID MOVE LOGIC: Compares against the top card's updated color
-        if (card.color === top.color || card.type === top.type || card.color === 'black') {
-            
-            // Stacking restriction for +4
-            if (stackCount > 0 && top.type === '+4' && card.type !== '+4') {
-                return socket.emit('status', "You can only play a +4 on top of a +4!");
-            }
+        const isMatch = card.color === top.color || card.type === top.type || card.color === 'black';
 
-            // --- THE COLOR FIX ---
-            // If the card being played is black, we change its color property 
-            // to the chosen color BEFORE it becomes the new "top" card.
-            if (card.color === 'black') {
-                card.color = data.chosenColor; 
-            }
-            // ---------------------
-
+        if (isMatch) {
+            if (card.color === 'black') card.color = data.chosenColor; // Rule #5
             if (card.type === '+2') stackCount += 2;
             if (card.type === '+4') stackCount += 4;
 
             player.hand.splice(data.index, 1);
             discardPile.push(card);
-            player.lastDrawnCard = null; // Clear restriction for the next turn
+            player.lastDrawnCard = null;
 
-            // Win Condition
+            // Rule #9: UNO Penalty Logic
+            if (player.hand.length === 1 && !player.saidUno) {
+                unoTimers[socket.id] = setTimeout(() => {
+                    if (!player.saidUno) {
+                        player.hand.push(deck.shift(), deck.shift());
+                        socket.emit('status', "UNO Penalty! +2 cards");
+                        updateAll();
+                    }
+                }, 5000);
+            }
+
+            // Rule #11: Continue until 3 players finish
             if (player.hand.length === 0) {
                 finishOrder.push(socket.id);
-                const points = [3, 2, 1, 0];
-                scores[socket.id] += points[finishOrder.length - 1];
-
+                scores[socket.id] += [3, 2, 1, 0][finishOrder.length - 1]; // Rule #13
                 if (finishOrder.length === 3) {
-                    const lastPlayer = players.find(p => !finishOrder.includes(p.id));
-                    finishOrder.push(lastPlayer.id);
+                    const last = players.find(p => !finishOrder.includes(p.id));
+                    finishOrder.push(last.id);
                     gameStarted = false;
                     return io.emit('tournamentResults', { order: finishOrder, allScores: scores });
                 }
             }
 
-            // Turn Handling
             if (card.type === 'Reverse') direction *= -1;
-            let skip = (card.type === 'Skip') ? 2 : 1;
-            nextTurn(skip);
-
-            io.emit('update', { 
-                topCard: card, 
-                turnId: players[currentPlayerIndex].id,
-                stack: stackCount
-            });
-            socket.emit('hand', player.hand);
+            nextTurn(card.type === 'Skip' ? 2 : 1);
+            checkDeck(); // Rule #8
+            updateAll();
         }
     });
 
-   socket.on('draw', () => {
+    socket.on('sayUno', () => {
+        const pIdx = players.findIndex(p => p.id === socket.id);
+        if (pIdx !== -1) {
+            players[pIdx].saidUno = true;
+            io.emit('status', `Player ${socket.id.substring(0,4)} said UNO!`);
+        }
+    });
+
+    // Rule #6: Choose to draw or stack
+    socket.on('draw', () => {
         const pIdx = players.findIndex(p => p.id === socket.id);
         if (pIdx !== currentPlayerIndex) return;
         let player = players[pIdx];
 
         if (stackCount > 0) {
-            // Penalty Draw (Stacking)
-            for (let i = 0; i < stackCount; i++) {
-                if (deck.length === 0) {
-                    const top = discardPile.pop();
-                    deck = shuffle([...discardPile]);
-                    discardPile = [top];
-                }
-                player.hand.push(deck.shift());
-            }
-            
-            // --- FIX IS HERE ---
+            for (let i = 0; i < stackCount; i++) player.hand.push(deck.shift());
             stackCount = 0;
-            player.lastDrawnCard = null; 
-            nextTurn(); 
-
-            // This line tells everyone that the turn has changed!
-            io.emit('update', { 
-                topCard: discardPile[discardPile.length - 1], 
-                turnId: players[currentPlayerIndex].id,
-                stack: 0
-            });
-            // -------------------
+            player.lastDrawnCard = null;
+            nextTurn();
         } else {
-            // Normal Draw
-            const drawnCard = deck.shift();
-            player.hand.push(drawnCard);
-            player.lastDrawnCard = drawnCard; 
+            const drawn = deck.shift();
+            player.hand.push(drawn);
+            player.lastDrawnCard = drawn; // Rule #7
             socket.emit('canPass');
         }
-        socket.emit('hand', player.hand);
+        checkDeck();
+        updateAll();
     });
 
-   socket.on('pass', () => {
+    socket.on('pass', () => {
         const pIdx = players.findIndex(p => p.id === socket.id);
-        if (pIdx !== currentPlayerIndex) return;
-        
-        // NEW RULE: Reset the drawn card restriction when passing
-        players[pIdx].lastDrawnCard = null; 
-        
-        nextTurn();
-        io.emit('update', { 
-            topCard: discardPile[discardPile.length-1], 
-            turnId: players[currentPlayerIndex].id,
-            stack: 0
-        });
-    });
-
-    socket.on('disconnect', () => {
-        players = players.filter(p => p.id !== socket.id);
-        if (players.length === 0) {
-            gameStarted = false;
-            stackCount = 0;
-            currentPlayerIndex = 0;
-            direction = 1;
+        if (pIdx === currentPlayerIndex) {
+            players[pIdx].lastDrawnCard = null;
+            nextTurn();
+            updateAll();
         }
     });
+
+    socket.on('requestRestart', () => {
+        restartVotes.add(socket.id);
+        io.emit('status', `Restart Votes: ${restartVotes.size}/4`);
+        if (restartVotes.size === 4) resetGame();
+    });
+
+    socket.on('exitGame', () => {
+        io.emit('terminated', "A player has exited.");
+        players = []; scores = {}; gameStarted = false;
+    });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`UNO Server is live on port ${PORT}`);
-});
+server.listen(process.env.PORT || 3000);

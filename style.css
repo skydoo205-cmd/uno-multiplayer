@@ -1,67 +1,37 @@
-body { background: #1a1a1a; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 0; }
-#game-container { padding: 20px; }
+body { background: #1a1a1a; color: white; font-family: sans-serif; text-align: center; margin: 0; }
+
+#game-container { display: flex; padding: 20px; min-height: 100vh; }
+#sidebar { width: 200px; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; border: 1px solid #444; }
+#main-play-area { flex-grow: 1; }
 
 .card {
-    width: 100px; height: 150px; border: 4px solid white; border-radius: 12px;
-    display: inline-block; margin: 10px; line-height: 150px; font-size: 24px;
+    width: 90px; height: 130px; border: 3px solid white; border-radius: 10px;
+    display: inline-block; margin: 5px; line-height: 130px; font-size: 20px;
     font-weight: bold; cursor: pointer; transition: 0.2s; vertical-align: middle;
-    position: relative; overflow: hidden;
 }
-.card:hover { transform: translateY(-10px); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+.card:hover { transform: translateY(-10px); box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
 
-.red { background: #e74c3c; }
-.blue { background: #3498db; }
-.green { background: #2ecc71; }
-.yellow { background: #f1c40f; color: black; }
-.black { background: #222; }
-.back { background: #555; border-color: #777; }
+/* Colors */
+.red { background: #e74c3c; } .blue { background: #3498db; }
+.green { background: #2ecc71; } .yellow { background: #f1c40f; color: black; }
+.black { background: #222; } .back { background: #555; }
+
+/* Rule #9: UNO Button */
+#uno-btn { 
+    background: #c0392b; color: white; border: 2px solid white; 
+    padding: 15px 30px; border-radius: 30px; font-weight: bold; cursor: pointer;
+}
 
 #color-picker {
     display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    background: white; padding: 20px; border-radius: 15px; z-index: 1000; box-shadow: 0 0 50px black;
-    color: #333;
+    background: white; padding: 20px; border-radius: 15px; z-index: 1000;
 }
-#color-picker button { width: 50px; height: 50px; border: none; margin: 5px; cursor: pointer; border-radius: 50%; }
-.btn-red { background: #e74c3c; } .btn-blue { background: #3498db; }
-.btn-green { background: #2ecc71; } .btn-yellow { background: #f1c40f; }
+#color-picker button { width: 50px; height: 50px; border: none; margin: 5px; border-radius: 50%; cursor: pointer; }
 
-#pass-btn { background: #e67e22; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-
-/* --- NEW: TOURNAMENT OVERLAY STYLES --- */
-
+/* Scoreboard */
 #scoreboard-overlay {
-    position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.9);
-    display: none; /* Controlled by script.js */
-    justify-content: center; align-items: center;
-    z-index: 2000;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 2000;
 }
-
-#scoreboard-content {
-    background: #2c3e50; padding: 40px; border-radius: 20px;
-    text-align: center; color: white; min-width: 350px;
-    border: 4px solid #f1c40f; box-shadow: 0 0 30px rgba(241, 196, 15, 0.3);
-}
-
-.score-row {
-    display: flex; justify-content: space-between;
-    margin: 15px 0; padding: 12px;
-    background: rgba(255, 255, 255, 0.1); border-radius: 8px;
-    font-size: 1.1rem; border-left: 5px solid #f1c40f;
-}
-
-.score-buttons { margin-top: 30px; display: flex; gap: 15px; justify-content: center; }
-
-.restart-btn { 
-    background: #27ae60; color: white; padding: 12px 24px; 
-    border: none; cursor: pointer; border-radius: 5px; font-weight: bold; 
-}
-.exit-btn { 
-    background: #c0392b; color: white; padding: 12px 24px; 
-    border: none; cursor: pointer; border-radius: 5px; font-weight: bold; 
-}
-.restart-btn:hover { background: #2ecc71; }
-.exit-btn:hover { background: #e74c3c; }
-
-#vote-count { margin-top: 15px; font-style: italic; color: #bdc3c7; }
+#scoreboard-content { background: #2c3e50; padding: 40px; border-radius: 20px; border: 3px solid gold; }
+.score-row { display: flex; justify-content: space-between; width: 300px; margin: 10px auto; padding: 10px; background: rgba(255,255,255,0.1); }
