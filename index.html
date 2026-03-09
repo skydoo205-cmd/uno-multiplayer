@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UNO V3 Bulletproof</title>
+    <title>UNO Master V3</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -42,30 +42,32 @@
             </div>
             
             <div id="controls">
-                 <button id="uno-btn" class="ctrl-btn" onclick="emitUno()">SAY UNO!</button>
-                 <button id="penalty-btn" class="ctrl-btn" onclick="emitPenalty()">PENALTY!</button>
-                 <button id="pass-btn" class="ctrl-btn" onclick="emitPass()">PASS</button>
+                 <button id="uno-btn" onclick="emitUno()">SAY UNO!</button>
+                 <button id="penalty-btn" onclick="emitPenalty()">PENALTY!</button>
+                 <button id="pass-btn" onclick="emitPass()">PASS</button>
             </div>
 
-            <div id="color-picker">
-                <p>Pick a Color:</p>
-                <div class="color-btns">
-                    <button onclick="chooseColor('red')" class="btn-red"></button>
-                    <button onclick="chooseColor('blue')" class="btn-blue"></button>
-                    <button onclick="chooseColor('green')" class="btn-green"></button>
-                    <button onclick="chooseColor('yellow')" class="btn-yellow"></button>
-                </div>
-            </div>
-            
             <div id="my-hand"></div>
         </div> 
     </div> 
 
-    <div id="scoreboard-overlay" style="display: none;">
+    <div id="scoreboard-overlay">
         <div id="scoreboard-content">
             <h2>Tournament Results</h2>
             <div id="score-list"></div>
-            <button onclick="location.reload()" class="lobby-btn join">Back to Lobby</button>
+            <div id="restart-status" style="color: gold; margin: 10px 0;"></div>
+            <button id="next-round-btn" onclick="requestRestart()" class="lobby-btn join">Next Round</button>
+            <button onclick="exitToLobby()" class="lobby-btn" style="background:#c0392b; border: 2px solid #fff;">Exit Tournament</button>
+        </div>
+    </div>
+
+    <div id="color-picker">
+        <p>Pick a Color:</p>
+        <div class="color-btns">
+            <button onclick="chooseColor('red')" class="btn-red"></button>
+            <button onclick="chooseColor('blue')" class="btn-blue"></button>
+            <button onclick="chooseColor('green')" class="btn-green"></button>
+            <button onclick="chooseColor('yellow')" class="btn-yellow"></button>
         </div>
     </div>
 

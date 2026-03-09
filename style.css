@@ -5,16 +5,16 @@ body {
     font-family: 'Segoe UI', sans-serif; 
     text-align: center; 
     margin: 0; 
-    overflow: hidden; /* Prevents whole-page scrolling */
+    overflow: hidden; 
 }
 
 #game-container { 
-    display: none; /* Hidden until joinRoom succeeds */
+    display: none; 
     height: 100vh; 
     width: 100vw;
 }
 
-/* --- 2. Sidebar (Your Original Style) --- */
+/* --- 2. Sidebar --- */
 #sidebar { 
     width: 220px; 
     background: #222; 
@@ -76,23 +76,23 @@ body {
 
 /* --- 4. Card Styles (70x100) --- */
 .card {
+    flex: 0 0 auto; 
     width: 70px; 
     height: 100px; 
     border: 3px solid white; 
     border-radius: 8px;
-    display: flex;
-    align-items: center;
+    display: flex; 
+    align-items: center; 
     justify-content: center;
     font-size: 18px; 
     font-weight: bold; 
     cursor: pointer; 
     transition: transform 0.2s;
-    user-select: none;
+    user-select: none; 
 }
 
 .card:hover { transform: translateY(-10px); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
 
-/* Card Colors */
 .red { background: #e74c3c; } 
 .blue { background: #3498db; }
 .green { background: #2ecc71; } 
@@ -100,20 +100,23 @@ body {
 .black { background: #222; } 
 .back { background: #555; border-color: #777; }
 
-/* --- 5. Horizontal Hand --- */
+/* --- Horizontal Hand Fix --- */
 #my-hand {
     display: flex;
+    flex-direction: row; 
+    flex-wrap: nowrap; 
     overflow-x: auto; 
     overflow-y: hidden;
-    padding: 20px;
-    width: 90%;
+    padding: 20px 10px;
+    width: 95%;
     margin: 0 auto;
     min-height: 140px;
-    border-top: 1px solid #333;
     gap: 10px;
+    justify-content: flex-start;
+    scrollbar-width: thin;
 }
 
-#my-hand::-webkit-scrollbar { height: 6px; }
+#my-hand::-webkit-scrollbar { height: 8px; }
 #my-hand::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
 
 /* --- 6. Controls --- */
@@ -132,14 +135,14 @@ body {
     cursor: pointer;
     border: 3px solid #fff;
     color: white;
-    display: none; /* Controlled by JS */
+    display: none; 
 }
 
 #uno-btn { background: #c0392b; }
 #penalty-btn { background: #f39c12; }
 #pass-btn { background: #e67e22; }
 
-/* --- 7. Overlays (Z-Index Fix) --- */
+/* --- 7. Overlays --- */
 #lobby-overlay, #scoreboard-overlay {
     position: fixed;
     inset: 0;
@@ -148,37 +151,12 @@ body {
     align-items: center;
 }
 
-#lobby-overlay {
-    background: #111;
-    z-index: 5000; /* Highest on load */
-}
+#lobby-overlay { background: #111; z-index: 5000; }
+#scoreboard-overlay { background: rgba(0, 0, 0, 0.95); z-index: 6000; display: none; }
 
-#scoreboard-overlay {
-    background: rgba(0, 0, 0, 0.95);
-    z-index: 6000; /* Overrides everything when active */
-    display: none; /* Strictly hidden until win */
-}
+.lobby-box, #scoreboard-content { background: #222; padding: 40px; border-radius: 15px; border: 3px solid gold; width: 320px; }
 
-.lobby-box, #scoreboard-content {
-    background: #222;
-    padding: 40px;
-    border-radius: 15px;
-    border: 3px solid gold;
-    width: 320px;
-}
-
-.lobby-btn {
-    width: 100%;
-    padding: 12px;
-    margin: 10px 0;
-    font-weight: bold;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    background: #c0392b;
-    color: white;
-}
-
+.lobby-btn { width: 100%; padding: 12px; margin: 10px 0; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; background: #c0392b; color: white; }
 .lobby-btn.join { background: #27ae60; }
 
 #color-picker {
@@ -196,3 +174,6 @@ body {
 .color-btns button { width: 60px; height: 60px; border-radius: 50%; border: 3px solid white; cursor: pointer; }
 .btn-red { background: #e74c3c; } .btn-blue { background: #3498db; }
 .btn-green { background: #2ecc71; } .btn-yellow { background: #f1c40f; }
+
+.separator { margin: 20px 0; font-weight: bold; color: #777; }
+#room-input { width: 100%; padding: 12px; font-size: 1.5rem; text-align: center; border-radius: 8px; border: 2px solid #444; background: #333; color: white; box-sizing: border-box; }

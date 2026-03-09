@@ -35,12 +35,12 @@ function updateUI(data) {
     const canPenalize = (data.windowActive && data.unoTarget !== sessionId);
 
     const status = document.getElementById('status');
-    status.innerText = myTurn ? "YOUR TURN!" : "Waiting...";
+    status.innerText = myTurn ? (data.waitingForPass ? "PLAY DRAWN CARD OR PASS" : "YOUR TURN!") : "Waiting...";
     status.style.color = myTurn ? "#2ecc71" : "white";
 
     document.getElementById('uno-btn').style.display = isTarget ? 'block' : 'none';
     document.getElementById('penalty-btn').style.display = canPenalize ? 'block' : 'none';
-    document.getElementById('pass-btn').style.display = (myTurn && !data.windowActive) ? 'block' : 'none';
+    document.getElementById('pass-btn').style.display = (myTurn && data.waitingForPass) ? 'block' : 'none';
 
     document.getElementById('stats-list').innerHTML = data.cardCounts.map(p => `
         <div class="stat-row ${!p.online ? 'offline' : ''}">
@@ -87,10 +87,24 @@ document.getElementById('draw-pile').onclick = () => { if(myTurn) socket.emit('d
 
 socket.on('results', data => {
     document.getElementById('score-list').innerHTML = data.order.map((id, i) => `
-        <div class="score-row"><span>${i+1}. ${id.substring(0,4)}</span><span>Total: ${data.scores[id]}</span></div>
+        <div class="score-row" style="display:flex; justify-content:space-between; padding:10px; background:#333; margin:5px; border-left:3px solid gold;">
+            <span>${i+1}. ${id.substring(0,4)}</span>
+            <span>Total: ${data.scores[id]}</span>
+        </div>
     `).join('');
+    const btn = document.getElementById('next-round-btn');
+    btn.disabled = false; btn.innerText = "Next Round"; btn.style.opacity = "1";
+    document.getElementById('restart-status').innerText = "";
     document.getElementById('scoreboard-overlay').style.display = 'flex';
 });
 
-socket.on('roomFull', () => alert("Room Full!"));
+window.requestRestart = () => {
+    const btn = document.getElementById('next-round-btn');
+    btn.disabled = true; btn.innerText = "Waiting..."; btn.style.opacity = "0.5";
+    socket.emit('requestRestart');
+};
+
+window.exitToLobby = () => { if (confirm("Exit tournament?")) socket.emit('exitTournament'); };
+socket.on('restartProgress', data => { document.getElementById('restart-status').innerText = `Ready: ${data.current}/${data.total}`; });
+socket.on('roomDestroyed', () => { alert("Tournament ended."); location.reload(); });
 socket.on('status', msg => { document.getElementById('status').innerText = msg; });

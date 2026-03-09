@@ -27,23 +27,24 @@ function createDeck() {
 function updateRoom(roomId) {
     const room = rooms[roomId];
     if (!room) return;
+    const currentPlayer = room.players[room.currentPlayerIndex];
     const counts = room.players.map(p => ({ 
-        id: p.sessionId, 
-        count: p.hand.length, 
-        online: !!p.socketId 
+        id: p.sessionId, count: p.hand.length, online: !!p.socketId 
     }));
+
     room.players.forEach(p => {
         if (p.socketId) {
             io.to(p.socketId).emit('init', {
                 hand: p.hand,
                 topCard: room.discardPile[room.discardPile.length - 1],
-                turnId: room.players[room.currentPlayerIndex].sessionId,
+                turnId: currentPlayer.sessionId,
                 cardCounts: counts,
                 scores: room.scores,
                 deckCount: room.deck.length,
                 unoTarget: room.unoTarget,
                 windowActive: room.unoWindowActive,
-                stack: room.stackCount
+                stack: room.stackCount,
+                waitingForPass: !!currentPlayer.lastDrawnCard
             });
         }
     });
@@ -61,6 +62,26 @@ function nextTurn(roomId, skip = 1) {
     }
 }
 
+function reshuffle(room) {
+    const top = room.discardPile.pop();
+    room.deck = [...room.deck, ...room.discardPile].sort(() => Math.random() - 0.5);
+    room.discardPile = [top];
+}
+
+function startRound(roomId) {
+    const room = rooms[roomId];
+    room.deck = createDeck();
+    room.players.forEach(p => { p.hand = room.deck.splice(0, 10); p.lastDrawnCard = null; });
+
+    let firstCard = room.deck.shift();
+    while (isNaN(firstCard.type)) { // STARTING CARD BUG FIX
+        room.deck.push(firstCard);
+        firstCard = room.deck.shift();
+    }
+    room.discardPile = [firstCard];
+    updateRoom(roomId);
+}
+
 io.on('connection', (socket) => {
     let myRoomId = null;
     let mySessionId = null;
@@ -74,7 +95,7 @@ io.on('connection', (socket) => {
                 players: [], deck: [], discardPile: [], currentPlayerIndex: 0,
                 direction: 1, gameStarted: false, stackCount: 0,
                 scores: {}, finishOrder: [], maxPlayers: playerLimit || 4,
-                unoWindowActive: false, unoTarget: null
+                unoWindowActive: false, unoTarget: null, restartVotes: new Set()
             };
         }
         const room = rooms[roomId];
@@ -87,7 +108,7 @@ io.on('connection', (socket) => {
             updateRoom(roomId);
         } else if (room.players.length < room.maxPlayers && !room.gameStarted) {
             socket.join(roomId);
-            room.players.push({ sessionId, socketId: socket.id, hand: [] });
+            room.players.push({ sessionId, socketId: socket.id, hand: [], lastDrawnCard: null });
             room.scores[sessionId] = room.scores[sessionId] || 0;
             socket.emit('roomJoined', roomId);
             if (room.players.length === room.maxPlayers) {
@@ -102,10 +123,11 @@ io.on('connection', (socket) => {
     socket.on('playCard', (data) => {
         const room = rooms[myRoomId];
         if (!room || room.players[room.currentPlayerIndex].sessionId !== mySessionId) return;
-        
         const player = room.players[room.currentPlayerIndex];
         const card = player.hand[data.index];
         const top = room.discardPile[room.discardPile.length - 1];
+
+        if (player.lastDrawnCard && card !== player.lastDrawnCard) return;
 
         if (room.stackCount > 0) {
             const canStack = (card.type === '+4') || (top.type !== '+4' && card.type === '+2');
@@ -120,10 +142,10 @@ io.on('connection', (socket) => {
 
             player.hand.splice(data.index, 1);
             room.discardPile.push(card);
+            player.lastDrawnCard = null;
 
             if (player.hand.length === 1) {
-                room.unoWindowActive = true;
-                room.unoTarget = mySessionId;
+                room.unoWindowActive = true; room.unoTarget = mySessionId;
                 setTimeout(() => { if (rooms[myRoomId]) { rooms[myRoomId].unoWindowActive = false; updateRoom(myRoomId); } }, 5000);
             }
 
@@ -132,12 +154,9 @@ io.on('connection', (socket) => {
                 if (room.finishOrder.length >= room.players.length - 1) {
                     const last = room.players.find(p => !room.finishOrder.includes(p.sessionId));
                     if (last) room.finishOrder.push(last.sessionId);
-                    room.finishOrder.forEach((sid, idx) => {
-                        room.scores[sid] += (room.maxPlayers - idx - 1);
-                    });
+                    room.finishOrder.forEach((sid, idx) => { room.scores[sid] += (room.maxPlayers - idx - 1); });
                     io.to(myRoomId).emit('results', { order: room.finishOrder, scores: room.scores });
-                    room.gameStarted = false;
-                    return;
+                    room.gameStarted = false; return;
                 }
             }
             nextTurn(myRoomId, card.type === 'Skip' ? 2 : 1);
@@ -145,64 +164,69 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('draw', () => {
+        const room = rooms[myRoomId];
+        if (!room || room.players[room.currentPlayerIndex].sessionId !== mySessionId) return;
+        const player = room.players[room.currentPlayerIndex];
+        if (room.stackCount > 0) {
+            for(let i=0; i<room.stackCount; i++) { if (room.deck.length < 1) reshuffle(room); player.hand.push(room.deck.shift()); }
+            room.stackCount = 0; nextTurn(myRoomId);
+        } else {
+            if (player.lastDrawnCard) return;
+            if (room.deck.length < 1) reshuffle(room);
+            const drawn = room.deck.shift();
+            player.hand.push(drawn); player.lastDrawnCard = drawn;
+        }
+        updateRoom(myRoomId);
+    });
+
+    socket.on('pass', () => {
+        const room = rooms[myRoomId];
+        if (!room) return;
+        const p = room.players[room.currentPlayerIndex];
+        if (p && p.sessionId === mySessionId && p.lastDrawnCard) {
+            p.lastDrawnCard = null; nextTurn(myRoomId); updateRoom(myRoomId);
+        }
+    });
+
     socket.on('unoAction', (type) => {
         const room = rooms[myRoomId];
         if (!room || !room.unoWindowActive) return;
-        if (type === 'safe' && mySessionId === room.unoTarget) {
-            room.unoWindowActive = false;
-        } else if (type === 'penalty' && mySessionId !== room.unoTarget) {
+        if (type === 'safe' && mySessionId === room.unoTarget) { room.unoWindowActive = false; }
+        else if (type === 'penalty' && mySessionId !== room.unoTarget) {
             const victim = room.players.find(p => p.sessionId === room.unoTarget);
-            for(let i=0; i<2; i++) { 
-                if (room.deck.length < 1) reshuffle(room);
-                victim.hand.push(room.deck.shift()); 
-            }
+            for(let i=0; i<2; i++) { if (room.deck.length < 1) reshuffle(room); victim.hand.push(room.deck.shift()); }
             room.unoWindowActive = false;
         }
         updateRoom(myRoomId);
     });
 
-    socket.on('draw', () => {
+    socket.on('requestRestart', () => {
         const room = rooms[myRoomId];
-        if (!room || room.players[room.currentPlayerIndex].sessionId !== mySessionId) return;
-        const p = room.players[room.currentPlayerIndex];
-        if (room.stackCount > 0) {
-            for(let i=0; i<room.stackCount; i++) {
-                if (room.deck.length < 1) reshuffle(room);
-                p.hand.push(room.deck.shift());
-            }
-            room.stackCount = 0;
-            nextTurn(myRoomId);
+        if (!room) return;
+        room.restartVotes.add(mySessionId);
+        if (room.restartVotes.size >= room.players.length) {
+            room.restartVotes.clear(); room.finishOrder = []; room.gameStarted = true;
+            room.direction = 1; room.currentPlayerIndex = 0; room.stackCount = 0;
+            room.unoTarget = null; room.unoWindowActive = false;
+            startRound(myRoomId);
         } else {
-            if (room.deck.length < 1) reshuffle(room);
-            p.hand.push(room.deck.shift());
+            io.to(myRoomId).emit('restartProgress', { current: room.restartVotes.size, total: room.players.length });
         }
-        updateRoom(myRoomId);
+    });
+
+    socket.on('exitTournament', () => {
+        if (myRoomId && rooms[myRoomId]) { io.to(myRoomId).emit('roomDestroyed'); delete rooms[myRoomId]; }
     });
 
     socket.on('disconnect', () => {
         if (rooms[myRoomId]) {
             const p = rooms[myRoomId].players.find(p => p.sessionId === mySessionId);
             if (p) p.socketId = null;
-            setTimeout(() => {
-                if (rooms[myRoomId] && rooms[myRoomId].players.every(pl => !pl.socketId)) delete rooms[myRoomId];
-            }, 60000);
+            setTimeout(() => { if (rooms[myRoomId] && rooms[myRoomId].players.every(pl => !pl.socketId)) delete rooms[myRoomId]; }, 60000);
             updateRoom(myRoomId);
         }
     });
 });
-
-function startRound(roomId) {
-    const room = rooms[roomId];
-    room.deck = createDeck();
-    room.discardPile = [room.deck.shift()];
-    room.players.forEach(p => p.hand = room.deck.splice(0, 10));
-    updateRoom(roomId);
-}
-
-function reshuffle(room) {
-    const top = room.discardPile.pop();
-    room.deck = [...room.deck, ...room.discardPile].sort(() => Math.random() - 0.5);
-    room.discardPile = [top];
-}
 
 server.listen(process.env.PORT || 3000);
