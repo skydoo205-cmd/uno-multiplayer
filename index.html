@@ -3,61 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UNO Tournament V2</title>
+    <title>UNO Tournament V3</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="lobby-overlay">
         <div class="lobby-box">
             <h1>UNO Multiplayer</h1>
-            <p>Start a new tournament or join friends</p>
+            <div class="setting-row">
+                <label>Max Players:</label>
+                <select id="player-limit">
+                    <option value="2">2 Players</option>
+                    <option value="3">3 Players</option>
+                    <option value="4" selected>4 Players</option>
+                    <option value="5">5 Players</option>
+                    <option value="6">6 Players</option>
+                </select>
+            </div>
             <button onclick="createRoom()" class="lobby-btn">Create New Room</button>
             <div class="separator">OR</div>
-            <div class="join-area">
-                <input type="text" id="room-input" placeholder="4-Digit Code" maxlength="4">
-                <button onclick="joinRoom()" class="lobby-btn join">Join Room</button>
-            </div>
+            <input type="text" id="room-input" placeholder="4-Digit Code" maxlength="4">
+            <button onclick="joinRoom()" class="lobby-btn join">Join Room</button>
         </div>
     </div>
 
     <div id="game-container" style="display: none;">
         <div id="sidebar">
-            <h3>Tournament</h3>
-            <div id="stats-list"></div>
             <div id="room-display"></div>
-            <div id="deck-info" class="deck-count-text"></div>
+            <div id="stats-list"></div>
+            <div id="deck-info"></div>
         </div>
 
         <div id="main-play-area">
-            <h1 id="game-title">UNO Multiplayer</h1>
-            <div id="status">Connecting to session...</div>
-
+            <div id="status">Connecting...</div>
             <div id="deck-area">
                 <div id="draw-pile" class="card back">Deck</div>
-                <div id="top-card-container">
-                    <div id="top-card" class="card">?</div>
-                </div>
+                <div id="top-card" class="card">?</div>
             </div>
-
+            
             <div id="controls">
-                 <button id="uno-btn" onclick="sayUno()">SAY UNO!</button>
-                 <button id="pass-btn" onclick="passTurn()">PASS TURN</button>
+                 <button id="uno-btn" class="ctrl-btn" onclick="emitUno()">SAY UNO!</button>
+                 <button id="penalty-btn" class="ctrl-btn" onclick="emitPenalty()">UNO PENALTY!</button>
+                 <button id="pass-btn" class="ctrl-btn" onclick="emitPass()">PASS</button>
             </div>
 
             <div id="color-picker">
-                <div class="picker-content">
-                    <p>Pick a Color:</p>
-                    <div class="color-btns">
-                        <button onclick="chooseColor('red')" class="btn-red"></button>
-                        <button onclick="chooseColor('blue')" class="btn-blue"></button>
-                        <button onclick="chooseColor('green')" class="btn-green"></button>
-                        <button onclick="chooseColor('yellow')" class="btn-yellow"></button>
-                    </div>
+                <p>Pick a Color:</p>
+                <div class="color-btns">
+                    <button onclick="chooseColor('red')" class="btn-red"></button>
+                    <button onclick="chooseColor('blue')" class="btn-blue"></button>
+                    <button onclick="chooseColor('green')" class="btn-green"></button>
+                    <button onclick="chooseColor('yellow')" class="btn-yellow"></button>
                 </div>
             </div>
-
-            <hr>
-            <h3>Your Hand</h3>
             <div id="my-hand"></div>
         </div> 
     </div> 
@@ -66,10 +64,8 @@
         <div id="scoreboard-content">
             <h2>Tournament Results</h2>
             <div id="score-list"></div>
-            <div class="score-buttons">
-                <button onclick="requestRestart()" class="restart-btn">Next Round</button>
-                <button onclick="exitGame()" class="exit-btn">Exit Lobby</button>
-            </div>
+            <button onclick="requestRestart()" class="lobby-btn">Next Round</button>
+            <button onclick="location.reload()" class="lobby-btn join">Exit Lobby</button>
         </div>
     </div>
 
