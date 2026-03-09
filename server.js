@@ -52,9 +52,7 @@ function updateRoom(roomId) {
 
 function nextTurn(roomId, skip = 1) {
     const room = rooms[roomId];
-    const active = room.players.filter(p => !room.finishOrder.includes(p.sessionId));
-    if (active.length === 2 && skip > 1) return; 
-
+    if (!room) return;
     let playersCount = room.players.length;
     room.currentPlayerIndex = (room.currentPlayerIndex + (room.direction * skip) + playersCount) % playersCount;
     while (room.finishOrder.includes(room.players[room.currentPlayerIndex].sessionId)) {
@@ -74,7 +72,7 @@ function startRound(roomId) {
     room.players.forEach(p => { p.hand = room.deck.splice(0, 10); p.lastDrawnCard = null; });
 
     let firstCard = room.deck.shift();
-    while (isNaN(firstCard.type)) { // STARTING CARD BUG FIX
+    while (isNaN(firstCard.type)) { 
         room.deck.push(firstCard);
         firstCard = room.deck.shift();
     }
@@ -136,16 +134,31 @@ io.on('connection', (socket) => {
 
         if (card.color === top.color || card.type === top.type || card.color === 'black') {
             if (card.color === 'black') card.color = data.chosenColor;
+            
             if (card.type === '+2') room.stackCount += 2;
             if (card.type === '+4') room.stackCount += 4;
-            if (card.type === 'Reverse' && room.players.length > 2) room.direction *= -1;
+
+            const activePlayers = room.players.filter(p => !room.finishOrder.includes(p.sessionId));
+            let skipCount = 1;
+
+            if (card.type === 'Skip') {
+                skipCount = 2;
+            } else if (card.type === 'Reverse') {
+                if (activePlayers.length === 2) {
+                    skipCount = 2;
+                } else {
+                    room.direction *= -1;
+                    skipCount = 1;
+                }
+            }
 
             player.hand.splice(data.index, 1);
             room.discardPile.push(card);
             player.lastDrawnCard = null;
 
             if (player.hand.length === 1) {
-                room.unoWindowActive = true; room.unoTarget = mySessionId;
+                room.unoWindowActive = true; 
+                room.unoTarget = mySessionId;
                 setTimeout(() => { if (rooms[myRoomId]) { rooms[myRoomId].unoWindowActive = false; updateRoom(myRoomId); } }, 5000);
             }
 
@@ -156,10 +169,12 @@ io.on('connection', (socket) => {
                     if (last) room.finishOrder.push(last.sessionId);
                     room.finishOrder.forEach((sid, idx) => { room.scores[sid] += (room.maxPlayers - idx - 1); });
                     io.to(myRoomId).emit('results', { order: room.finishOrder, scores: room.scores });
-                    room.gameStarted = false; return;
+                    room.gameStarted = false; 
+                    return;
                 }
             }
-            nextTurn(myRoomId, card.type === 'Skip' ? 2 : 1);
+
+            nextTurn(myRoomId, skipCount);
             updateRoom(myRoomId);
         }
     });
