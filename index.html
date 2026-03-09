@@ -7,15 +7,29 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="game-container">
+    <div id="lobby-overlay">
+        <div class="lobby-box">
+            <h1>UNO Multiplayer</h1>
+            <p>Start a new tournament or join friends</p>
+            <button onclick="createRoom()" class="lobby-btn">Create New Room</button>
+            <div class="separator">OR</div>
+            <div class="join-area">
+                <input type="text" id="room-input" placeholder="4-Digit Code" maxlength="4">
+                <button onclick="joinRoom()" class="lobby-btn join">Join Room</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-container" style="display: none;">
         <div id="sidebar">
             <h3>Players</h3>
             <div id="stats-list"></div>
+            <div id="room-display"></div>
         </div>
 
         <div id="main-play-area">
             <h1 id="game-title">UNO Multiplayer</h1>
-            <div id="status">Waiting for players (0/4)...</div>
+            <div id="status">Waiting for players...</div>
 
             <div id="deck-area">
                 <div id="draw-pile" class="card back">Deck</div>
@@ -26,7 +40,7 @@
 
             <div id="controls">
                  <button id="uno-btn" onclick="sayUno()">SAY UNO!</button>
-                 <button id="pass-btn"  onclick="passTurn()">PASS TURN</button>
+                 <button id="pass-btn" onclick="passTurn()">PASS TURN</button>
             </div>
 
             <div id="color-picker">

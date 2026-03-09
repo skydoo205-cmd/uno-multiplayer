@@ -24,15 +24,35 @@ socket.on('status', msg => {
 });
 
 // Sidebar Stats
-function updateStats(counts) {
+function updateStats(counts, deckCount) { // Add deckCount parameter
     const list = document.getElementById('stats-list');
-    list.innerHTML = counts.map(p => `
+    
+    // Create the player rows
+    let html = counts.map(p => `
         <div class="stat-row">
             Player ${p.id.substring(0,4)}<br>
             <strong>${p.count} Cards</strong>
         </div>
     `).join('');
+
+    // ADD THIS: A special row for the Deck status
+    html += `
+        <div class="deck-info">
+            Draw Pile: ${deckCount}
+        </div>
+    `;
+    
+    list.innerHTML = html;
 }
+
+// Also update the 'init' listener to pass the new value
+socket.on('init', data => {
+    document.getElementById('scoreboard-overlay').style.display = 'none';
+    renderHand(data.hand);
+    renderTop(data.topCard);
+    setTurn(data.turnId);
+    updateStats(data.cardCounts, data.deckCount); // Pass deckCount here
+});
 
 // Card Management
 function renderHand(hand) {
@@ -105,15 +125,24 @@ function renderTop(c) {
     el.innerHTML = `<span>${c.type}</span>`;
 }
 
-// Tournament Results
+// Updated for Cumulative Scoring
 socket.on('tournamentResults', data => {
     const list = document.getElementById('score-list');
-    list.innerHTML = data.order.map((id, i) => `
-        <div class="score-row">
-            <span>${i+1}. Player ${id.substring(0,4)}</span>
-            <span>+${[3,2,1,0][i]} Points</span>
-        </div>
-    `).join('');
+    
+    // data.order is the rank of the current round
+    // data.totalScores is the running total from the server
+    list.innerHTML = data.order.map((id, i) => {
+        const roundPoints = [3, 2, 1, 0][i];
+        const total = data.totalScores[id] || 0;
+        
+        return `
+            <div class="score-row" style="display: flex; justify-content: space-between; border-bottom: 1px solid #444; padding: 5px 0;">
+                <span>${i+1}. Player ${id.substring(0,4)}</span>
+                <span style="color: #27ae60;">+${roundPoints} (Total: ${total})</span>
+            </div>
+        `;
+    }).join('');
+    
     document.getElementById('scoreboard-overlay').style.display = 'flex';
 });
 

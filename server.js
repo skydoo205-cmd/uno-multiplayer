@@ -8,16 +8,8 @@ const io = new Server(server);
 
 app.use(express.static(__dirname));
 
-let deck = [];
-let players = [];
-let discardPile = [];
-let currentPlayerIndex = 0;
-let direction = 1; 
-let gameStarted = false;
-let stackCount = 0;
-let scores = {}; 
-let finishOrder = [];
-let restartVotes = new Set();
+// --- GLOBAL ROOMS DATA ---
+const rooms = {}; // Holds all active game states
 
 function createDeck() {
     const colors = ['red', 'blue', 'green', 'yellow'];
@@ -38,206 +30,235 @@ function createDeck() {
 
 function shuffle(arr) { return arr.sort(() => Math.random() - 0.5); }
 
-// FIXED: Bug #1 - 2-Player Skip/Reverse logic
-function nextTurn(skip = 1) {
-    let playersCount = players.length;
+// Logic specialized for individual rooms
+function nextTurn(roomId, skip = 1) {
+    const room = rooms[roomId];
+    let playersCount = room.players.length;
     let attempts = 0;
-    
-    // Check how many players are still in the game
-    const activePlayers = players.filter(p => !finishOrder.includes(p.id));
+    const activePlayers = room.players.filter(p => !room.finishOrder.includes(p.id));
 
-    // Special Rule: If only 2 players left, Skip and Reverse = Go Again
     if (activePlayers.length === 2 && skip > 1) {
-        // We do NOT move the currentPlayerIndex
-        console.log("2-Player Rule: Skip/Reverse applied. Turn stays.");
+        console.log(`Room ${roomId}: Turn stays.`);
     } else {
-        currentPlayerIndex = (currentPlayerIndex + (direction * skip) + playersCount) % playersCount;
-        while (finishOrder.includes(players[currentPlayerIndex].id) && attempts < playersCount) {
-            currentPlayerIndex = (currentPlayerIndex + direction + playersCount) % playersCount;
+        room.currentPlayerIndex = (room.currentPlayerIndex + (room.direction * skip) + playersCount) % playersCount;
+        while (room.finishOrder.includes(room.players[room.currentPlayerIndex].id) && attempts < playersCount) {
+            room.currentPlayerIndex = (room.currentPlayerIndex + room.direction + playersCount) % playersCount;
             attempts++;
         }
     }
 }
 
-function resetGame() {
-    finishOrder = [];
-    restartVotes.clear();
-    gameStarted = true;
-    stackCount = 0;
-    currentPlayerIndex = 0;
-    direction = 1;
-    deck = shuffle(createDeck());
-    players.forEach(p => {
-        p.hand = deck.splice(0, 10); 
-        p.lastDrawnCard = null;
-        p.saidUno = false;
-    });
-    const powerTypes = ['Skip', 'Reverse', '+2', '+4', 'Wild'];
-    let validStartIdx = deck.findIndex(card => !powerTypes.includes(card.type) && card.color !== 'black');
-    if (validStartIdx === -1) return resetGame();
-    discardPile = [deck.splice(validStartIdx, 1)[0]];
-    updateAll();
+function resetGame(roomId) {
+    const room = rooms[roomId];
+    room.finishOrder = [];
+    room.restartVotes.clear();
+    room.gameStarted = true;
+    room.stackCount = 0;
+    room.currentPlayerIndex = 0;
+    room.direction = 1;
+
+    let validStartFound = false;
+    while (!validStartFound) {
+        room.deck = shuffle(createDeck());
+        const powerTypes = ['Skip', 'Reverse', '+2', '+4', 'Wild'];
+        let idx = room.deck.findIndex(card => !powerTypes.includes(card.type) && card.color !== 'black');
+        
+        if (idx !== -1) {
+            room.players.forEach(p => {
+                p.hand = room.deck.splice(0, 10); 
+                p.lastDrawnCard = null;
+                p.saidUno = false;
+            });
+            room.discardPile = [room.deck.splice(idx, 1)[0]];
+            validStartFound = true;
+        }
+    }
+    updateRoom(roomId);
 }
 
-function updateAll() {
-    const counts = players.map(p => ({ id: p.id, count: p.hand.length }));
-    players.forEach(p => {
+function updateRoom(roomId) {
+    const room = rooms[roomId];
+    const counts = room.players.map(p => ({ id: p.id, count: p.hand.length }));
+    room.players.forEach(p => {
         io.to(p.id).emit('init', { 
             hand: p.hand, 
-            topCard: discardPile[discardPile.length - 1], 
-            turnId: players[currentPlayerIndex].id,
+            topCard: room.discardPile[room.discardPile.length - 1], 
+            turnId: room.players[room.currentPlayerIndex].id,
             cardCounts: counts,
-            scores: scores
+            scores: room.scores,
+            deckCount: room.deck.length
         });
     });
 }
 
-// Helper: Reshuffle discard pile if deck is empty
-function checkDeck() {
-    if (deck.length < 5) {
-        const top = discardPile.pop();
-        deck = shuffle([...deck, ...discardPile]);
-        discardPile = [top];
-        console.log("Deck reshuffled.");
+function checkDeck(roomId) {
+    const room = rooms[roomId];
+    if (room.deck.length < 5) {
+        const top = room.discardPile.pop();
+        room.deck = shuffle([...room.deck, ...room.discardPile]);
+        room.discardPile = [top];
+        console.log(`Room ${roomId}: Deck reshuffled.`);
     }
 }
 
 io.on('connection', (socket) => {
-    if (players.length < 4) {
-        players.push({ id: socket.id, hand: [], lastDrawnCard: null, saidUno: false });
-        scores[socket.id] = scores[socket.id] || 0;
-        io.emit('status', `Waiting for players (${players.length}/4)...`);
-    }
-    if (players.length === 4 && !gameStarted) resetGame();
+    let currentRoomId = null;
 
-    socket.on('playCard', (data) => {
-        const pIdx = players.findIndex(p => p.id === socket.id);
-        if (pIdx !== currentPlayerIndex) return;
-        let player = players[pIdx];
-        let card = player.hand[data.index];
-        let top = discardPile[discardPile.length - 1];
-
-        if (player.lastDrawnCard && card !== player.lastDrawnCard) {
-            return socket.emit('status', "Play the drawn card or Pass!");
+    socket.on('joinRoom', (roomId) => {
+        // Initialize room if it doesn't exist
+        if (!rooms[roomId]) {
+            rooms[roomId] = {
+                players: [], deck: [], discardPile: [], currentPlayerIndex: 0,
+                direction: 1, gameStarted: false, stackCount: 0,
+                scores: {}, finishOrder: [], restartVotes: new Set()
+            };
         }
 
-        if (stackCount > 0) {
+        const room = rooms[roomId];
+
+        if (room.players.length < 4 && !room.gameStarted) {
+            currentRoomId = roomId;
+            socket.join(roomId);
+            room.players.push({ id: socket.id, hand: [], lastDrawnCard: null, saidUno: false });
+            room.scores[socket.id] = room.scores[socket.id] || 0;
+            
+            socket.emit('roomJoined', roomId);
+            io.to(roomId).emit('status', `Waiting for players (${room.players.length}/4)...`);
+
+            if (room.players.length === 4) resetGame(roomId);
+        } else {
+            socket.emit('roomFull');
+        }
+    });
+
+    socket.on('playCard', (data) => {
+        const room = rooms[currentRoomId];
+        if (!room) return;
+
+        const pIdx = room.players.findIndex(p => p.id === socket.id);
+        if (pIdx !== room.currentPlayerIndex) return;
+        
+        let player = room.players[pIdx];
+        let card = player.hand[data.index];
+        let top = room.discardPile[room.discardPile.length - 1];
+
+        if (player.lastDrawnCard && card !== player.lastDrawnCard) return;
+
+        if (room.stackCount > 0) {
             const isStackable = (card.type === '+4') || (top.type !== '+4' && card.type === '+2');
-            if (!isStackable) {
-                return socket.emit('status', "Stack a +2/+4 or draw the penalty!");
-            }
+            if (!isStackable) return;
         }
 
         const isMatch = card.color === top.color || card.type === top.type || card.color === 'black';
 
         if (isMatch) {
-            if (stackCount > 0 && top.type === '+4' && card.type === '+2') return;
-
             if (card.color === 'black') card.color = data.chosenColor;
-            if (card.type === '+2') stackCount += 2;
-            if (card.type === '+4') stackCount += 4;
+            if (card.type === '+2') room.stackCount += 2;
+            if (card.type === '+4') room.stackCount += 4;
 
             player.hand.splice(data.index, 1);
-            discardPile.push(card);
+            room.discardPile.push(card);
             player.lastDrawnCard = null; 
 
             if (player.hand.length === 1) {
                 player.saidUno = false;
                 setTimeout(() => {
-                    const pCheck = players.find(p => p.id === player.id);
+                    const pCheck = room.players.find(p => p.id === player.id);
                     if (pCheck && pCheck.hand.length === 1 && !pCheck.saidUno) {
-                        checkDeck(); // Ensure cards available
+                        checkDeck(currentRoomId);
                         for (let i = 0; i < 2; i++) {
-                            if (deck.length > 0) pCheck.hand.push(deck.shift());
+                            if (room.deck.length > 0) pCheck.hand.push(room.deck.shift());
                         }
-                        io.to(pCheck.id).emit('status', "PENALTY: +2 for not saying UNO in 5s!");
-                        updateAll();
+                        io.to(pCheck.id).emit('status', "PENALTY: +2 for not saying UNO!");
+                        updateRoom(currentRoomId);
                     }
                 }, 5000); 
             }
 
-            if (player.hand.length === 0 && !finishOrder.includes(player.id)) {
-                finishOrder.push(player.id);
-                io.emit('status', `Player ${player.id.substring(0,4)} finished!`);
+            if (player.hand.length === 0 && !room.finishOrder.includes(player.id)) {
+                room.finishOrder.push(player.id);
+                if (room.finishOrder.length >= room.players.length - 1) {
+                    const lastPlayer = room.players.find(p => !room.finishOrder.includes(p.id));
+                    if (lastPlayer) room.finishOrder.push(lastPlayer.id);
+                    
+                    room.finishOrder.forEach((id, index) => {
+                        room.scores[id] += [3, 2, 1, 0][index]; 
+                    });
 
-                if (finishOrder.length >= players.length - 1) {
-                    const lastPlayer = players.find(p => !finishOrder.includes(p.id));
-                    if (lastPlayer) finishOrder.push(lastPlayer.id);
-                    io.emit('tournamentResults', { order: finishOrder });
-                    gameStarted = false; 
+                    io.to(currentRoomId).emit('tournamentResults', { order: room.finishOrder, totalScores: room.scores });
+                    room.gameStarted = false; 
                     return; 
                 }
             }
 
             if (card.type === 'Reverse') {
-                if (players.filter(p => !finishOrder.includes(p.id)).length === 2) {
-                    nextTurn(2); // Acts as a Skip
+                if (room.players.filter(p => !room.finishOrder.includes(p.id)).length === 2) {
+                    nextTurn(currentRoomId, 2);
                 } else {
-                    direction *= -1;
-                    nextTurn(1);
+                    room.direction *= -1;
+                    nextTurn(currentRoomId, 1);
                 }
             } else {
-                nextTurn(card.type === 'Skip' ? 2 : 1);
+                nextTurn(currentRoomId, card.type === 'Skip' ? 2 : 1);
             }
-            updateAll();
-        }
-    });
-
-    socket.on('sayUno', () => {
-        const p = players.find(p => p.id === socket.id);
-        if (p) {
-            p.saidUno = true;
-            io.emit('status', `Player ${p.id.substring(0,4)} said UNO!`);
+            updateRoom(currentRoomId);
         }
     });
 
     socket.on('draw', () => {
-        const pIdx = players.findIndex(p => p.id === socket.id);
-        if (pIdx !== currentPlayerIndex) return;
-        let player = players[pIdx];
+        const room = rooms[currentRoomId];
+        if (!room) return;
+        const pIdx = room.players.findIndex(p => p.id === socket.id);
+        if (pIdx !== room.currentPlayerIndex) return;
 
-        checkDeck(); // FIXED: Reshuffle if deck is low
+        checkDeck(currentRoomId);
+        let player = room.players[pIdx];
 
-        if (stackCount > 0) {
-            for (let i = 0; i < stackCount; i++) {
-                if (deck.length > 0) player.hand.push(deck.shift());
+        if (room.stackCount > 0) {
+            for (let i = 0; i < room.stackCount; i++) {
+                if (room.deck.length > 0) player.hand.push(room.deck.shift());
             }
-            stackCount = 0;
-            player.lastDrawnCard = null;
-            nextTurn();
+            room.stackCount = 0;
+            nextTurn(currentRoomId);
         } else {
-            if (player.lastDrawnCard) return socket.emit('status', "Already drew! Play or Pass.");
-            const drawn = deck.shift();
+            if (player.lastDrawnCard) return;
+            const drawn = room.deck.shift();
             if (drawn) {
                 player.hand.push(drawn);
                 player.lastDrawnCard = drawn; 
-                socket.emit('canPass');
             }
         }
-        updateAll();
+        updateRoom(currentRoomId);
     });
 
     socket.on('pass', () => {
-        const pIdx = players.findIndex(p => p.id === socket.id);
-        if (pIdx === currentPlayerIndex) {
-            if (!players[pIdx].lastDrawnCard) {
-                return socket.emit('status', "You must draw first!");
-            }
-            players[pIdx].lastDrawnCard = null;
-            nextTurn();
-            updateAll();
+        const room = rooms[currentRoomId];
+        if (room && room.players[room.currentPlayerIndex].id === socket.id) {
+            room.players[room.currentPlayerIndex].lastDrawnCard = null;
+            nextTurn(currentRoomId);
+            updateRoom(currentRoomId);
         }
     });
 
     socket.on('requestRestart', () => {
-        restartVotes.add(socket.id);
-        if (restartVotes.size === players.length) resetGame();
+        const room = rooms[currentRoomId];
+        if (room) {
+            room.restartVotes.add(socket.id);
+            if (room.restartVotes.size === room.players.length) resetGame(currentRoomId);
+        }
     });
 
     socket.on('disconnect', () => {
-        players = players.filter(p => p.id !== socket.id);
-        gameStarted = false;
-        io.emit('status', `Player left. (${players.length}/4)`);
+        if (currentRoomId && rooms[currentRoomId]) {
+            const room = rooms[currentRoomId];
+            room.players = room.players.filter(p => p.id !== socket.id);
+            if (room.players.length === 0) {
+                delete rooms[currentRoomId]; // Cleanup empty rooms
+            } else {
+                room.gameStarted = false;
+                io.to(currentRoomId).emit('status', "Player left. Game reset.");
+            }
+        }
     });
 });
 
