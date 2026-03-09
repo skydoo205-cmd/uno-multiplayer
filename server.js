@@ -163,16 +163,32 @@ io.on('connection', (socket) => {
             }
 
             if (player.hand.length === 0) {
-                room.finishOrder.push(mySessionId);
-                if (room.finishOrder.length >= room.players.length - 1) {
-                    const last = room.players.find(p => !room.finishOrder.includes(p.sessionId));
-                    if (last) room.finishOrder.push(last.sessionId);
-                    room.finishOrder.forEach((sid, idx) => { room.scores[sid] += (room.maxPlayers - idx - 1); });
+                // 1. Add player to finish order if not already there
+                if (!room.finishOrder.includes(mySessionId)) {
+                    room.finishOrder.push(mySessionId);
+                }
+
+                // 2. CHECK: Only end if (Total Players - 1) have finished
+                if (room.finishOrder.length === room.players.length - 1) {
+                    // Find the last player who hasn't finished
+                    const lastPlayer = room.players.find(p => !room.finishOrder.includes(p.sessionId));
+                    if (lastPlayer && !room.finishOrder.includes(lastPlayer.sessionId)) {
+                        room.finishOrder.push(lastPlayer.sessionId);
+                    }
+
+                    // 3. Calculate scores based on the FINAL order
+                    room.finishOrder.forEach((sid, idx) => {
+                        // Points: Winner gets most, last gets 0
+                        const points = (room.players.length - 1 - idx);
+                        room.scores[sid] = (room.scores[sid] || 0) + points;
+                    });
+
                     io.to(myRoomId).emit('results', { order: room.finishOrder, scores: room.scores });
-                    room.gameStarted = false; 
-                    return;
+                    room.gameStarted = false;
+                    return; // Stop the turn logic because game is over
                 }
             }
+            // ... proceed to nextTurn only if game is still going
 
             nextTurn(myRoomId, skipCount);
             updateRoom(myRoomId);

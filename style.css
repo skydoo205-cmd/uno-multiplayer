@@ -78,7 +78,8 @@ body {
 .card {
     flex: 0 0 auto; 
     width: 70px; 
-    height: 100px; 
+    height: 100px;
+    margin: 0 5px; 
     border: 3px solid white; 
     border-radius: 8px;
     display: flex; 
@@ -104,20 +105,32 @@ body {
 #my-hand {
     display: flex;
     flex-direction: row; 
-    flex-wrap: nowrap; 
-    overflow-x: auto; 
-    overflow-y: hidden;
-    padding: 20px 10px;
-    width: 95%;
+    flex-wrap: nowrap;   /* CRITICAL: Prevents cards from jumping to row 2 */
+    justify-content: flex-start; /* Keeps cards starting from the left */
+    align-items: center;
+    
+    /* Scroll Logic */
+    overflow-x: auto;    /* Enables horizontal scrollbar */
+    overflow-y: hidden;  /* Prevents vertical jumping */
+    -webkit-overflow-scrolling: touch; /* Smooth momentum scroll for mobile */
+    
+    /* Sizing Logic */
+    width: 100%;         /* Fill the play area */
+    max-width: 80vw;     /* Prevents it from pushing into the sidebar */
+    min-height: 150px;
+    padding: 10px;
     margin: 0 auto;
-    min-height: 140px;
-    gap: 10px;
-    justify-content: flex-start;
-    scrollbar-width: thin;
+    scrollbar-width: thin; /* Clean look for Firefox */
 }
 
-#my-hand::-webkit-scrollbar { height: 8px; }
-#my-hand::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
+/* Custom Scrollbar for Chrome/Edge/Safari */
+#my-hand::-webkit-scrollbar {
+    height: 8px;
+}
+#my-hand::-webkit-scrollbar-thumb {
+    background: gold;    /* Makes the scrollbar visible so you know it's there */
+    border-radius: 10px;
+};
 
 /* --- 6. Controls --- */
 #controls {
