@@ -8,7 +8,8 @@ const io = new Server(server);
 
 app.use(express.static(__dirname));
 
-const rooms = {};
+// --- GLOBAL ROOMS DATA ---
+const rooms = {}; // Holds all active game states
 
 function createDeck() {
     const colors = ['red', 'blue', 'green', 'yellow'];
@@ -29,23 +30,25 @@ function createDeck() {
 
 function shuffle(arr) { return arr.sort(() => Math.random() - 0.5); }
 
+// Logic specialized for individual rooms
 function nextTurn(roomId, skip = 1) {
     const room = rooms[roomId];
     let playersCount = room.players.length;
     let attempts = 0;
-    const activePlayers = room.players.filter(p => !room.finishOrder.includes(p.sessionId));
+    const activePlayers = room.players.filter(p => !room.finishOrder.includes(p.id));
 
     if (activePlayers.length === 2 && skip > 1) {
         console.log(`Room ${roomId}: Turn stays.`);
     } else {
         room.currentPlayerIndex = (room.currentPlayerIndex + (room.direction * skip) + playersCount) % playersCount;
-        while (room.finishOrder.includes(room.players[room.currentPlayerIndex].sessionId) && attempts < playersCount) {
+        while (room.finishOrder.includes(room.players[room.currentPlayerIndex].id) && attempts < playersCount) {
             room.currentPlayerIndex = (room.currentPlayerIndex + room.direction + playersCount) % playersCount;
             attempts++;
         }
     }
 }
 
+// 1. FIX: Updated resetGame to handle 10 cards
 function resetGame(roomId) {
     const room = rooms[roomId];
     room.finishOrder = [];
@@ -63,7 +66,8 @@ function resetGame(roomId) {
         
         if (idx !== -1) {
             room.players.forEach(p => {
-                p.hand = room.deck.splice(0, 7); // 7 cards for faster session testing
+                // FORCE 10 CARDS HERE
+                p.hand = room.deck.splice(0, 10); 
                 p.lastDrawnCard = null;
                 p.saidUno = false;
             });
@@ -74,11 +78,12 @@ function resetGame(roomId) {
     updateRoom(roomId);
 }
 
+// 2. FIX: Ensure updateRoom uses 'init' and transmits to all room members
 function updateRoom(roomId) {
     const room = rooms[roomId];
     if (!room) return;
     
-    // Include 'online' status so players know who disconnected
+    // Track who is online/offline based on sessionId
     const counts = room.players.map(p => ({ 
         id: p.sessionId, 
         count: p.hand.length, 
@@ -87,6 +92,7 @@ function updateRoom(roomId) {
 
     room.players.forEach(p => {
         if (p.socketId) {
+            // Emitting 'init' to match your script.js listener
             io.to(p.socketId).emit('init', { 
                 hand: p.hand, 
                 topCard: room.discardPile[room.discardPile.length - 1], 
@@ -105,18 +111,16 @@ function checkDeck(roomId) {
         const top = room.discardPile.pop();
         room.deck = shuffle([...room.deck, ...room.discardPile]);
         room.discardPile = [top];
+        console.log(`Room ${roomId}: Deck reshuffled.`);
     }
 }
 
 io.on('connection', (socket) => {
-    let myRoomId = null;
-    let mySessionId = null;
+    let currentRoomId = null;
 
     socket.on('joinRoom', (data) => {
-        const { roomId, sessionId } = data;
-        myRoomId = roomId;
-        mySessionId = sessionId;
-
+        const { roomId, sessionId } = data; // Destructure from the object
+    
         if (!rooms[roomId]) {
             rooms[roomId] = {
                 players: [], deck: [], discardPile: [], currentPlayerIndex: 0,
@@ -126,21 +130,22 @@ io.on('connection', (socket) => {
         }
 
         const room = rooms[roomId];
+        myRoomId = roomId;
+        mySessionId = sessionId;
 
-        // SESSION RECOVERY: Check if player is rejoining
+        // Check for reconnection
         let existingPlayer = room.players.find(p => p.sessionId === sessionId);
-        
         if (existingPlayer) {
-            existingPlayer.socketId = socket.id; // Bind new socket to old hand
+            existingPlayer.socketId = socket.id;
             socket.join(roomId);
             socket.emit('roomJoined', roomId);
             updateRoom(roomId);
             return;
         }
 
-        // NEW JOIN
         if (room.players.length < 4 && !room.gameStarted) {
             socket.join(roomId);
+            // Store sessionId for persistent turns
             room.players.push({ 
                 sessionId: sessionId, 
                 socketId: socket.id, 
@@ -160,9 +165,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('playCard', (data) => {
-        const room = rooms[myRoomId];
+        const room = rooms[currentRoomId];
         if (!room) return;
-        const pIdx = room.players.findIndex(p => p.sessionId === mySessionId);
+
+        const pIdx = room.players.findIndex(p => p.id === socket.id);
         if (pIdx !== room.currentPlayerIndex) return;
         
         let player = room.players[pIdx];
@@ -187,44 +193,58 @@ io.on('connection', (socket) => {
             room.discardPile.push(card);
             player.lastDrawnCard = null; 
 
-            // Handle Finish
-            if (player.hand.length === 0 && !room.finishOrder.includes(player.sessionId)) {
-                room.finishOrder.push(player.sessionId);
+            if (player.hand.length === 1) {
+                player.saidUno = false;
+                setTimeout(() => {
+                    const pCheck = room.players.find(p => p.id === player.id);
+                    if (pCheck && pCheck.hand.length === 1 && !pCheck.saidUno) {
+                        checkDeck(currentRoomId);
+                        for (let i = 0; i < 2; i++) {
+                            if (room.deck.length > 0) pCheck.hand.push(room.deck.shift());
+                        }
+                        io.to(pCheck.id).emit('status', "PENALTY: +2 for not saying UNO!");
+                        updateRoom(currentRoomId);
+                    }
+                }, 5000); 
+            }
+
+            if (player.hand.length === 0 && !room.finishOrder.includes(player.id)) {
+                room.finishOrder.push(player.id);
                 if (room.finishOrder.length >= room.players.length - 1) {
-                    const lastPlayer = room.players.find(p => !room.finishOrder.includes(p.sessionId));
-                    if (lastPlayer) room.finishOrder.push(lastPlayer.sessionId);
+                    const lastPlayer = room.players.find(p => !room.finishOrder.includes(p.id));
+                    if (lastPlayer) room.finishOrder.push(lastPlayer.id);
                     
-                    room.finishOrder.forEach((sid, index) => {
-                        room.scores[sid] += [3, 2, 1, 0][index]; 
+                    room.finishOrder.forEach((id, index) => {
+                        room.scores[id] += [3, 2, 1, 0][index]; 
                     });
 
-                    io.to(myRoomId).emit('tournamentResults', { order: room.finishOrder, totalScores: room.scores });
+                    io.to(currentRoomId).emit('tournamentResults', { order: room.finishOrder, totalScores: room.scores });
                     room.gameStarted = false; 
                     return; 
                 }
             }
 
             if (card.type === 'Reverse') {
-                if (room.players.filter(p => !room.finishOrder.includes(p.sessionId)).length === 2) {
-                    nextTurn(myRoomId, 2);
+                if (room.players.filter(p => !room.finishOrder.includes(p.id)).length === 2) {
+                    nextTurn(currentRoomId, 2);
                 } else {
                     room.direction *= -1;
-                    nextTurn(myRoomId, 1);
+                    nextTurn(currentRoomId, 1);
                 }
             } else {
-                nextTurn(myRoomId, card.type === 'Skip' ? 2 : 1);
+                nextTurn(currentRoomId, card.type === 'Skip' ? 2 : 1);
             }
-            updateRoom(myRoomId);
+            updateRoom(currentRoomId);
         }
     });
 
     socket.on('draw', () => {
-        const room = rooms[myRoomId];
+        const room = rooms[currentRoomId];
         if (!room) return;
-        const pIdx = room.players.findIndex(p => p.sessionId === mySessionId);
+        const pIdx = room.players.findIndex(p => p.id === socket.id);
         if (pIdx !== room.currentPlayerIndex) return;
 
-        checkDeck(myRoomId);
+        checkDeck(currentRoomId);
         let player = room.players[pIdx];
 
         if (room.stackCount > 0) {
@@ -232,7 +252,7 @@ io.on('connection', (socket) => {
                 if (room.deck.length > 0) player.hand.push(room.deck.shift());
             }
             room.stackCount = 0;
-            nextTurn(myRoomId);
+            nextTurn(currentRoomId);
         } else {
             if (player.lastDrawnCard) return;
             const drawn = room.deck.shift();
@@ -241,33 +261,36 @@ io.on('connection', (socket) => {
                 player.lastDrawnCard = drawn; 
             }
         }
-        updateRoom(myRoomId);
+        updateRoom(currentRoomId);
     });
 
     socket.on('pass', () => {
-        const room = rooms[myRoomId];
-        if (room && room.players[room.currentPlayerIndex].sessionId === mySessionId) {
+        const room = rooms[currentRoomId];
+        if (room && room.players[room.currentPlayerIndex].id === socket.id) {
             room.players[room.currentPlayerIndex].lastDrawnCard = null;
-            nextTurn(myRoomId);
-            updateRoom(myRoomId);
+            nextTurn(currentRoomId);
+            updateRoom(currentRoomId);
+        }
+    });
+
+    socket.on('requestRestart', () => {
+        const room = rooms[currentRoomId];
+        if (room) {
+            room.restartVotes.add(socket.id);
+            if (room.restartVotes.size === room.players.length) resetGame(currentRoomId);
         }
     });
 
     socket.on('disconnect', () => {
-        if (myRoomId && rooms[myRoomId]) {
-            const room = rooms[myRoomId];
-            const p = room.players.find(p => p.sessionId === mySessionId);
-            if (p) p.socketId = null; // Mark as offline but keep hand
-
-            // GRACE PERIOD: Only delete room if everyone is gone for 60s
-            setTimeout(() => {
-                if (rooms[myRoomId] && rooms[myRoomId].players.every(player => !player.socketId)) {
-                    delete rooms[myRoomId];
-                    console.log(`Room ${myRoomId} purged due to inactivity.`);
-                }
-            }, 60000);
-            
-            updateRoom(myRoomId);
+        if (currentRoomId && rooms[currentRoomId]) {
+            const room = rooms[currentRoomId];
+            room.players = room.players.filter(p => p.id !== socket.id);
+            if (room.players.length === 0) {
+                delete rooms[currentRoomId]; // Cleanup empty rooms
+            } else {
+                room.gameStarted = false;
+                io.to(currentRoomId).emit('status', "Player left. Game reset.");
+            }
         }
     });
 });

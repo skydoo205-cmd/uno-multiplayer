@@ -304,23 +304,29 @@ body.results-open #controls {
     display: none !important;
 }
 
-/* --- Session/Offline Indicators --- */
-/* Highlights players who are disconnected but still in the "grace period" */
+/* --- Session Status Styles --- */
 .stat-row.offline {
-    border-left: 4px solid #e74c3c; /* Red border for offline */
+    border-left: 4px solid #e74c3c !important; /* Red for disconnected */
     opacity: 0.6;
     background: #2a2a2a;
 }
 
-.stat-row.offline strong {
-    color: #e74c3c;
+.stat-row strong {
+    display: block;
+    margin-top: 5px;
 }
 
-/* --- Deck Info Polish --- */
+/* High-priority fix for the Scoreboard */
+#scoreboard-overlay {
+    z-index: 2147483647 !important; /* Forces it above everything */
+}
+
+/* Cleanup for the Deck Count */
 .deck-count-text {
     margin-top: 15px;
-    font-size: 0.9rem;
+    padding: 10px;
     color: #f1c40f;
+    font-weight: bold;
+    border-top: 1px solid #444;
     text-align: center;
-    letter-spacing: 1px;
 }

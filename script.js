@@ -50,14 +50,15 @@ socket.on('forceExit', (reason) => {
 
 // --- GAME LOGIC ---
 
+// 3. FIX: Standardize the 'init' listener
 socket.on('init', data => {
-    // Hide scoreboard when a new round starts
+    // Close scoreboard if a new round starts
     document.getElementById('scoreboard-overlay').style.display = 'none';
     document.body.classList.remove('results-open');
     
     renderHand(data.hand);
     renderTop(data.topCard);
-    setTurn(data.turnId);
+    setTurn(data.turnId); // Now passes the Session ID
     updateStats(data.cardCounts, data.deckCount);
 });
 
@@ -71,17 +72,32 @@ socket.on('status', msg => {
     }
 });
 
+// 2. FIX: Ensure updateStats handles the 'online' flag
 function updateStats(counts, deckCount) {
     const list = document.getElementById('stats-list');
-    let html = counts.map(p => `
-        <div class="stat-row ${!p.online ? 'offline' : ''}">
-            Player ${p.id.substring(0,4)} ${!p.online ? '(OFFLINE)' : ''}<br>
-            <strong>${p.count} Cards</strong>
-        </div>
-    `).join('');
+    
+    let html = counts.map(p => {
+        // Visual indicator if a player is currently disconnected
+        const statusText = p.online ? '' : ' <span style="color:#e74c3c;">(OFFLINE)</span>';
+        const isMe = p.id === sessionId ? ' <span style="color:gold;">(YOU)</span>' : '';
+        
+        return `
+            <div class="stat-row" style="${!p.online ? 'opacity: 0.5; border-left: 4px solid #e74c3c;' : ''}">
+                Player ${p.id.substring(0,4)}${isMe}${statusText}<br>
+                <strong>${p.count} Cards</strong>
+            </div>
+        `;
+    }).join('');
 
+    // Update the Draw Pile counter
     const deckInfo = document.getElementById('deck-info');
-    if (deckInfo) deckInfo.innerText = `Draw Pile: ${deckCount}`;
+    if (deckInfo) {
+        deckInfo.innerText = `Draw Pile: ${deckCount}`;
+    } else {
+        // Fallback if the specific div isn't there
+        html += `<div class="deck-info">Draw Pile: ${deckCount}</div>`;
+    }
+    
     list.innerHTML = html;
 }
 
@@ -123,17 +139,24 @@ document.getElementById('draw-pile').onclick = () => {
     if(myTurn) socket.emit('draw'); 
 };
 
+// 1. FIX: Use sessionId for Turn Logic
 function setTurn(id) {
-    // Compare turn ID to Session ID instead of Socket ID
-    myTurn = (sessionId === id);
-    const status = document.getElementById('status');
-    status.innerText = myTurn ? "YOUR TURN!" : "Waiting...";
+    // We compare the turn ID from the server to our persistent sessionId
+    myTurn = (sessionId === id); 
     
+    const status = document.getElementById('status');
+    const passBtn = document.getElementById('pass-btn');
+
     if (myTurn) {
+        status.innerText = "YOUR TURN!";
+        status.style.color = "#2ecc71"; // Green for active turn
         hasDrawn = false; 
-        document.getElementById('pass-btn').style.display = 'inline-block';
+        if (passBtn) passBtn.style.display = 'inline-block';
     } else {
-        document.getElementById('pass-btn').style.display = 'none';
+        // Show exactly which session ID the server is waiting for
+        status.innerText = "Waiting for Player " + id.substring(0,4) + "...";
+        status.style.color = "white";
+        if (passBtn) passBtn.style.display = 'none';
     }
 }
 
