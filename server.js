@@ -30,8 +30,7 @@ function updateRoom(roomId) {
     const counts = room.players.map(p => ({ 
         id: p.sessionId, 
         count: p.hand.length, 
-        online: !!p.socketId,
-        finished: room.finishOrder.includes(p.sessionId)
+        online: !!p.socketId 
     }));
     room.players.forEach(p => {
         if (p.socketId) {

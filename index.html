@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UNO Tournament V3</title>
+    <title>UNO V3 Bulletproof</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="lobby-overlay">
         <div class="lobby-box">
             <h1>UNO Multiplayer</h1>
-            <div class="setting-row" style="margin-bottom: 20px;">
-                <label style="color: gold; font-weight: bold;">Max Players:</label>
-                <select id="player-limit" style="padding: 5px; border-radius: 5px;">
+            <div style="margin: 20px 0;">
+                <label style="color: gold; font-weight: bold;">Room Size:</label>
+                <select id="player-limit">
                     <option value="2">2 Players</option>
                     <option value="3">3 Players</option>
                     <option value="4" selected>4 Players</option>
@@ -20,31 +20,31 @@
                     <option value="6">6 Players</option>
                 </select>
             </div>
-            <button onclick="createRoom()" class="lobby-btn">Create New Room</button>
+            <button onclick="createRoom()" class="lobby-btn">Create Room</button>
             <div class="separator">OR</div>
             <input type="text" id="room-input" placeholder="4-Digit Code" maxlength="4">
             <button onclick="joinRoom()" class="lobby-btn join">Join Room</button>
         </div>
     </div>
 
-    <div id="game-container" style="display: none;">
+    <div id="game-container">
         <div id="sidebar">
             <div id="room-display">ROOM: ----</div>
             <div id="stats-list"></div>
-            <div id="deck-info" class="deck-count-text"></div>
+            <div id="deck-info" class="deck-count-text">DECK: --</div>
         </div>
 
         <div id="main-play-area">
             <div id="status">Connecting...</div>
-            <div id="deck-area" style="display: flex; justify-content: center; gap: 30px; margin: 30px 0;">
+            <div id="deck-area">
                 <div id="draw-pile" class="card back">DECK</div>
                 <div id="top-card" class="card">?</div>
             </div>
             
             <div id="controls">
                  <button id="uno-btn" class="ctrl-btn" onclick="emitUno()">SAY UNO!</button>
-                 <button id="penalty-btn" class="ctrl-btn" onclick="emitPenalty()">UNO PENALTY!</button>
-                 <button id="pass-btn" onclick="emitPass()">PASS</button>
+                 <button id="penalty-btn" class="ctrl-btn" onclick="emitPenalty()">PENALTY!</button>
+                 <button id="pass-btn" class="ctrl-btn" onclick="emitPass()">PASS</button>
             </div>
 
             <div id="color-picker">
@@ -56,15 +56,16 @@
                     <button onclick="chooseColor('yellow')" class="btn-yellow"></button>
                 </div>
             </div>
+            
             <div id="my-hand"></div>
         </div> 
     </div> 
 
-    <div id="scoreboard-overlay">
+    <div id="scoreboard-overlay" style="display: none;">
         <div id="scoreboard-content">
             <h2>Tournament Results</h2>
             <div id="score-list"></div>
-            <button onclick="location.reload()" class="lobby-btn join">Next Round</button>
+            <button onclick="location.reload()" class="lobby-btn join">Back to Lobby</button>
         </div>
     </div>
 

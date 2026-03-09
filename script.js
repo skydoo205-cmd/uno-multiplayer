@@ -34,8 +34,9 @@ function updateUI(data) {
     const isTarget = (data.windowActive && data.unoTarget === sessionId);
     const canPenalize = (data.windowActive && data.unoTarget !== sessionId);
 
-    document.getElementById('status').innerText = myTurn ? "YOUR TURN!" : "Waiting...";
-    document.getElementById('status').style.color = myTurn ? "#2ecc71" : "white";
+    const status = document.getElementById('status');
+    status.innerText = myTurn ? "YOUR TURN!" : "Waiting...";
+    status.style.color = myTurn ? "#2ecc71" : "white";
 
     document.getElementById('uno-btn').style.display = isTarget ? 'block' : 'none';
     document.getElementById('penalty-btn').style.display = canPenalize ? 'block' : 'none';
@@ -90,3 +91,6 @@ socket.on('results', data => {
     `).join('');
     document.getElementById('scoreboard-overlay').style.display = 'flex';
 });
+
+socket.on('roomFull', () => alert("Room Full!"));
+socket.on('status', msg => { document.getElementById('status').innerText = msg; });
