@@ -1,60 +1,90 @@
 const socket = io();
+
+// --- SESSION MANAGEMENT ---
+// Generate or retrieve a persistent ID so the server remembers you
+let sessionId = localStorage.getItem('uno_session_id');
+if (!sessionId) {
+    sessionId = Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    localStorage.setItem('uno_session_id', sessionId);
+}
+
 let myTurn = false;
 let hasDrawn = false;
 let pendingIndex = null;
+let currentRoom = null;
 
-// Handle Game Start and Updates
+// --- LOBBY LOGIC ---
+
+window.createRoom = () => {
+    // Generate a random 4-digit code and request room creation
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    joinRoom(code);
+};
+
+window.joinRoom = (manualCode) => {
+    const code = manualCode || document.getElementById('room-input').value;
+    if (code.length !== 4) return alert("Please enter a 4-digit code.");
+    
+    currentRoom = code;
+    // Send both Room ID and Session ID to the server
+    socket.emit('joinRoom', { roomId: code, sessionId: sessionId });
+};
+
+// Listen for successful room entry or reconnection
+socket.on('roomJoined', (roomId) => {
+    document.getElementById('lobby-overlay').style.display = 'none';
+    document.getElementById('game-container').style.display = 'flex';
+    document.getElementById('room-display').innerText = `ROOM: ${roomId}`;
+});
+
+socket.on('roomFull', () => {
+    alert("This room is full or already in progress!");
+    currentRoom = null;
+});
+
+// If the server terminates the room due to inactivity or disconnection
+socket.on('forceExit', (reason) => {
+    if (reason) alert(reason);
+    window.location.reload();
+});
+
+// --- GAME LOGIC ---
+
 socket.on('init', data => {
+    // Hide scoreboard when a new round starts
     document.getElementById('scoreboard-overlay').style.display = 'none';
+    document.body.classList.remove('results-open');
+    
     renderHand(data.hand);
     renderTop(data.topCard);
     setTurn(data.turnId);
-    updateStats(data.cardCounts);
+    updateStats(data.cardCounts, data.deckCount);
 });
 
 socket.on('status', msg => {
     const statusDiv = document.getElementById('status');
     statusDiv.innerText = msg;
     
-    // Feedback: Turn status red if a penalty occurs
     if (msg.includes("PENALTY") || msg.includes("TOO SLOW") || msg.includes("reshuffled")) {
         statusDiv.style.color = "#e74c3c";
         setTimeout(() => { statusDiv.style.color = "white"; }, 3000);
     }
 });
 
-// Sidebar Stats
-function updateStats(counts, deckCount) { // Add deckCount parameter
+function updateStats(counts, deckCount) {
     const list = document.getElementById('stats-list');
-    
-    // Create the player rows
     let html = counts.map(p => `
-        <div class="stat-row">
-            Player ${p.id.substring(0,4)}<br>
+        <div class="stat-row ${!p.online ? 'offline' : ''}">
+            Player ${p.id.substring(0,4)} ${!p.online ? '(OFFLINE)' : ''}<br>
             <strong>${p.count} Cards</strong>
         </div>
     `).join('');
 
-    // ADD THIS: A special row for the Deck status
-    html += `
-        <div class="deck-info">
-            Draw Pile: ${deckCount}
-        </div>
-    `;
-    
+    const deckInfo = document.getElementById('deck-info');
+    if (deckInfo) deckInfo.innerText = `Draw Pile: ${deckCount}`;
     list.innerHTML = html;
 }
 
-// Also update the 'init' listener to pass the new value
-socket.on('init', data => {
-    document.getElementById('scoreboard-overlay').style.display = 'none';
-    renderHand(data.hand);
-    renderTop(data.topCard);
-    setTurn(data.turnId);
-    updateStats(data.cardCounts, data.deckCount); // Pass deckCount here
-});
-
-// Card Management
 function renderHand(hand) {
     const cont = document.getElementById('my-hand');
     cont.innerHTML = '';
@@ -80,12 +110,7 @@ window.chooseColor = (color) => {
     socket.emit('playCard', { index: pendingIndex, chosenColor: color });
 };
 
-// --- TURN ACTIONS ---
-
-window.passTurn = () => {
-    if (!myTurn) return;
-    socket.emit('pass'); 
-};
+window.passTurn = () => { if (myTurn) socket.emit('pass'); };
 
 window.sayUno = () => {
     socket.emit('sayUno'); 
@@ -94,23 +119,17 @@ window.sayUno = () => {
     setTimeout(() => { btn.style.background = "#c0392b"; }, 1000);
 };
 
-// Handle clicks on the deck
 document.getElementById('draw-pile').onclick = () => { 
-    // FIXED: Removed local hasDrawn block to allow reshuffle retries
-    if(myTurn) {
-        socket.emit('draw'); 
-    }
+    if(myTurn) socket.emit('draw'); 
 };
 
-// Fixed turn-setting logic
 function setTurn(id) {
-    const wasMyTurn = myTurn;
-    myTurn = (socket.id === id);
+    // Compare turn ID to Session ID instead of Socket ID
+    myTurn = (sessionId === id);
     const status = document.getElementById('status');
     status.innerText = myTurn ? "YOUR TURN!" : "Waiting...";
     
     if (myTurn) {
-        // Reset local draw flag whenever it becomes your turn
         hasDrawn = false; 
         document.getElementById('pass-btn').style.display = 'inline-block';
     } else {
@@ -118,23 +137,20 @@ function setTurn(id) {
     }
 }
 
-// UI Helpers
 function renderTop(c) {
     const el = document.getElementById('top-card');
     el.className = `card ${c.color}`;
     el.innerHTML = `<span>${c.type}</span>`;
 }
 
-// Updated for Cumulative Scoring
 socket.on('tournamentResults', data => {
+    // Prevent the UNO button from clipping through the scoreboard
+    document.body.classList.add('results-open');
     const list = document.getElementById('score-list');
     
-    // data.order is the rank of the current round
-    // data.totalScores is the running total from the server
     list.innerHTML = data.order.map((id, i) => {
         const roundPoints = [3, 2, 1, 0][i];
         const total = data.totalScores[id] || 0;
-        
         return `
             <div class="score-row" style="display: flex; justify-content: space-between; border-bottom: 1px solid #444; padding: 5px 0;">
                 <span>${i+1}. Player ${id.substring(0,4)}</span>
@@ -142,9 +158,13 @@ socket.on('tournamentResults', data => {
             </div>
         `;
     }).join('');
-    
     document.getElementById('scoreboard-overlay').style.display = 'flex';
 });
 
 window.requestRestart = () => socket.emit('requestRestart');
-window.exitGame = () => { if(confirm("Exit?")) socket.emit('exitGame'); };
+window.exitGame = () => { 
+    if(confirm("Exit this lobby? Progress will be lost.")) {
+        localStorage.removeItem('uno_session_id'); // Clear session to join fresh later
+        window.location.reload(); 
+    }
+};

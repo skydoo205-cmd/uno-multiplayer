@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UNO Tournament</title>
+    <title>UNO Tournament V2</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -22,14 +22,15 @@
 
     <div id="game-container" style="display: none;">
         <div id="sidebar">
-            <h3>Players</h3>
+            <h3>Tournament</h3>
             <div id="stats-list"></div>
             <div id="room-display"></div>
+            <div id="deck-info" class="deck-count-text"></div>
         </div>
 
         <div id="main-play-area">
             <h1 id="game-title">UNO Multiplayer</h1>
-            <div id="status">Waiting for players...</div>
+            <div id="status">Connecting to session...</div>
 
             <div id="deck-area">
                 <div id="draw-pile" class="card back">Deck</div>
@@ -66,8 +67,8 @@
             <h2>Tournament Results</h2>
             <div id="score-list"></div>
             <div class="score-buttons">
-                <button onclick="requestRestart()" class="restart-btn">Restart</button>
-                <button onclick="exitGame()" class="exit-btn">Exit Game</button>
+                <button onclick="requestRestart()" class="restart-btn">Next Round</button>
+                <button onclick="exitGame()" class="exit-btn">Exit Lobby</button>
             </div>
         </div>
     </div>
