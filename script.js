@@ -4,7 +4,6 @@ localStorage.setItem('uno_v3_session', sessionId);
 
 let myTurn = false, currentRoom = null, pendingIdx = null;
 
-// --- LOBBY ---
 window.createRoom = () => {
     const limit = document.getElementById('player-limit').value;
     const code = Math.floor(1000 + Math.random() * 9000).toString();
@@ -23,7 +22,6 @@ socket.on('roomJoined', (id) => {
     document.getElementById('room-display').innerText = `ROOM: ${id}`;
 });
 
-// --- GAMEPLAY ---
 socket.on('init', data => {
     document.getElementById('scoreboard-overlay').style.display = 'none';
     renderHand(data.hand);
@@ -37,6 +35,8 @@ function updateUI(data) {
     const canPenalize = (data.windowActive && data.unoTarget !== sessionId);
 
     document.getElementById('status').innerText = myTurn ? "YOUR TURN!" : "Waiting...";
+    document.getElementById('status').style.color = myTurn ? "#2ecc71" : "white";
+
     document.getElementById('uno-btn').style.display = isTarget ? 'block' : 'none';
     document.getElementById('penalty-btn').style.display = canPenalize ? 'block' : 'none';
     document.getElementById('pass-btn').style.display = (myTurn && !data.windowActive) ? 'block' : 'none';
@@ -68,6 +68,12 @@ function renderHand(hand) {
     });
 }
 
+function renderTop(card) {
+    const el = document.getElementById('top-card');
+    el.className = `card ${card.color}`;
+    el.innerHTML = `<span>${card.type}</span>`;
+}
+
 window.chooseColor = (c) => {
     document.getElementById('color-picker').style.display = 'none';
     socket.emit('playCard', { index: pendingIdx, chosenColor: c });
@@ -80,10 +86,7 @@ document.getElementById('draw-pile').onclick = () => { if(myTurn) socket.emit('d
 
 socket.on('results', data => {
     document.getElementById('score-list').innerHTML = data.order.map((id, i) => `
-        <div class="score-row">
-            <span>${i+1}. ${id.substring(0,4)}</span>
-            <span>Total: ${data.scores[id]}</span>
-        </div>
+        <div class="score-row"><span>${i+1}. ${id.substring(0,4)}</span><span>Total: ${data.scores[id]}</span></div>
     `).join('');
     document.getElementById('scoreboard-overlay').style.display = 'flex';
 });
