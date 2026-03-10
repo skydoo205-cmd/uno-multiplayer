@@ -49,7 +49,7 @@ socket.on('init', data => {
     lastHandSize = data.hand.length;
 
     updateUI(data); 
-    renderHand(data.hand, data.topCard);
+    renderHand(data.hand, data.topCard, data.waitingForPass, data.stack);
     renderTop(data.topCard);
 });
 
@@ -125,20 +125,46 @@ function updateUI(data) {
 }
 
 // --- RENDERING ---
-function renderHand(hand, topCard) {
+function renderHand(hand, topCard, lastDrawn, currentStack) {
     const cont = document.getElementById('my-hand');
     cont.innerHTML = '';
     
     hand.forEach((c, i) => {
         const div = document.createElement('div');
-        // Requirement: Playable Card Aura
-        const isPlayable = myTurn && (c.color === topCard.color || c.type === topCard.type || c.color === 'black');
+        div.className = `card ${c.color}`;
         
-        div.className = `card ${c.color} ${isPlayable ? 'playable-glow' : ''}`;
+        // --- LOGIC 1: THE TACTICAL DRAW (WHITE GLOW) ---
+        const isRecentlyDrawn = lastDrawn && c.type === lastDrawn.type && c.color === lastDrawn.color;
+
+        // --- LOGIC 2: SMART STACKING (GOLD GLOW) ---
+        let isPlayable = false;
+
+        if (currentStack > 0) {
+            // If under attack, ONLY glow cards that can actually stack
+            // Rule: +4 on anything, or +2 on a +2
+            const isTopPlus4 = (topCard.type === '+4');
+            if (c.type === '+4') isPlayable = true;
+            if (!isTopPlus4 && c.type === '+2') isPlayable = true;
+        } else {
+            // Normal play rules
+            isPlayable = (c.color === topCard.color || c.type === topCard.type || c.color === 'black');
+        }
+
+        // Apply Visuals
+        if (isRecentlyDrawn) {
+            div.classList.add('recently-drawn');
+        } else if (myTurn && isPlayable && !lastDrawn) {
+            // Only show gold glow if we aren't waiting on a "Play or Pass" decision
+            div.classList.add('playable-glow');
+        }
+
         div.innerHTML = `<span>${c.type}</span>`;
         
         div.onclick = () => {
             if(!myTurn || isSpectator) return;
+            // Block clicking other cards if we just drew a tactical card
+            if (lastDrawn && !isRecentlyDrawn) return; 
+
             if(c.color === 'black') {
                 pendingIdx = i;
                 document.getElementById('color-picker').style.display = 'flex';

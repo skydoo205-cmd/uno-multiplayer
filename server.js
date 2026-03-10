@@ -37,37 +37,62 @@ function sortHand(hand) {
 function updateRoom(roomId) {
     const room = rooms[roomId];
     if (!room) return;
-    const currentPlayer = room.players[room.currentPlayerIndex];
-    const counts = room.players.map(p => ({ 
-        id: p.sessionId, count: p.hand.length, online: !!p.socketId 
-    }));
 
+    const topCard = room.discardPile[room.discardPile.length - 1];
+    const currentPlayer = room.players[room.currentPlayerIndex];
+
+    // --- FIX: The Reaper Calculation ---
     let reaperTime = null;
-    if (room.reaperTimer && room.reaperEnd) {
-        reaperTime = Math.max(0, Math.ceil((room.reaperEnd - Date.now()) / 1000));
+
+    // Check if there is an active end-time set for this room
+    if (room.reaperEnd) {
+        const now = Date.now();
+        const diff = room.reaperEnd - now;
+        
+        // Only show a number if there's time left
+        if (diff > 0) {
+            reaperTime = Math.ceil(diff / 1000);
+        } else {
+            // If time is up (0 or negative), stop showing it 
+            // This prevents the "Stuck at 4s" visual bug
+            reaperTime = 0; 
+            
+            // OPTIONAL: If time is up, the server should trigger a draw/skip here
+            // if (room.reaperActive) { handleTimeout(roomId); }
+        }
     }
 
-    room.players.forEach(p => {
-        if (p.socketId) {
-            // Requirement: Spectator "God Mode" (Winners see everyone's cards)
-            const isSpectator = room.finishOrder.includes(p.sessionId);
+    room.players.forEach((p) => {
+        // Requirement: Spectator "God Mode" (Winners see everyone's cards)
+        const isSpectator = room.finishOrder.includes(p.sessionId);
+        
+        const payload = {
+            roomCode: roomId,
+            players: room.players.map(player => ({
+                username: player.username,
+                sessionId: player.sessionId,
+                cardCount: player.hand.length,
+                isOffline: player.isOffline
+            })),
+            topCard: topCard,
+            currentPlayerIndex: room.currentPlayerIndex,
+            turnId: currentPlayer.sessionId, // Helps client identify whose turn it is
+            direction: room.direction,
             
-            io.to(p.socketId).emit('init', {
-                hand: p.hand,
-                topCard: room.discardPile[room.discardPile.length - 1],
-                turnId: currentPlayer.sessionId,
-                cardCounts: counts,
-                scores: room.scores,
-                deckCount: room.deck.length,
-                unoTarget: room.unoTarget,
-                windowActive: room.unoWindowActive,
-                stack: room.stackCount,
-                waitingForPass: !!currentPlayer.lastDrawnCard,
-                reaperTimeLeft: reaperTime,
-                finishOrder: room.finishOrder,
-                isSpectator: isSpectator
-            });
-        }
+            // --- Logic for V5.1 Smart Glows ---
+            waitingForPass: p.lastDrawnCard, // Sends the card object for the White Glow
+            stack: room.stackCount, // Sends stack count to block "Liar Glows"
+            
+            hand: p.hand,
+            finishOrder: room.finishOrder,
+            results: room.results,
+            reaperTimeLeft: reaperTime,
+            isSpectator: isSpectator,
+            deckCount: room.deck.length
+        };
+
+        // Send to player via their specific session/socket
+        io.to(p.sessionId).emit('init', payload);
     });
 }
 
@@ -75,14 +100,19 @@ function nextTurn(roomId, skip = 1) {
     const room = rooms[roomId];
     if (!room) return;
     let playersCount = room.players.length;
-    let safety = 0;
-
-    room.currentPlayerIndex = (room.currentPlayerIndex + (room.direction * skip) + playersCount) % playersCount;
-    
-    // Requirement: Turn-Skip Logic (Skip anyone in finishOrder)
-    while (room.finishOrder.includes(room.players[room.currentPlayerIndex].sessionId) && safety < 20) {
+    // Step 1: Execute the jump (1 for normal, 2 for Skip/1v1 Reverse)
+    // We do this 'skip' times to ensure we properly jump over the right number of people
+    for (let i = 0; i < skip; i++) {
         room.currentPlayerIndex = (room.currentPlayerIndex + room.direction + playersCount) % playersCount;
-        safety++;
+        
+        // Step 2: The Spectator Bridge
+        // If the person we landed on is already finished, we MUST keep moving 
+        // until we find someone still playing. This doesn't count as a "skip".
+        let safety = 0;
+        while (room.finishOrder.includes(room.players[room.currentPlayerIndex].sessionId) && safety < playersCount) {
+            room.currentPlayerIndex = (room.currentPlayerIndex + room.direction + playersCount) % playersCount;
+            safety++;
+        }
     }
 }
 
@@ -221,22 +251,39 @@ io.on('connection', (socket) => {
                 }, 5000);
             }
 
+            // --- FIND THIS LINE AROUND LINE 183 ---
             if (player.hand.length === 0) {
-                if (!room.finishOrder.includes(mySessionId)) room.finishOrder.push(mySessionId);
-                
-                // Requirement: Full Order Calculation & Persistent Scores
-                if (room.finishOrder.length >= room.players.length - 1) {
-                    const last = room.players.find(p => !room.finishOrder.includes(p.sessionId));
-                    if(last) room.finishOrder.push(last.sessionId);
+                if (!room.finishOrder.includes(mySessionId)) {
+                    room.finishOrder.push(mySessionId);
+                }
 
+                // --- NEW: Calculate remaining players ---
+                const activePlayers = room.players.filter(p => !room.finishOrder.includes(p.sessionId));
+
+                // FIX: If only 1 person is left, the game is OVER
+                if (activePlayers.length <= 1) {
+                    if (activePlayers.length === 1) {
+                        room.finishOrder.push(activePlayers[0].sessionId);
+                    }
+
+                    // 1. Calculate final scores for the standings
                     room.finishOrder.forEach((sid, idx) => {
                         const points = (room.players.length - 1 - idx);
                         room.scores[sid] += points;
                     });
 
-                    io.to(myRoomId).emit('results', { order: room.finishOrder, scores: room.scores });
+                    // 2. KILL THE REAPER (Fixes the "Stuck at 4s" bug)
+                    if (room.reaperTimer) {
+                        clearInterval(room.reaperTimer);
+                        room.reaperTimer = null;
+                        room.reaperEnd = null;
+                    }
+
+                    // 3. Close game state and send results
                     room.gameStarted = false;
-                    return;
+                    io.to(myRoomId).emit('results', { order: room.finishOrder, scores: room.scores });
+                    updateRoom(myRoomId);
+                    return; // Stop the function here
                 }
             }
 
