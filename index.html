@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UNO Master V3</title>
+    <title>UNO Master V3 - Tournament Edition</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -36,19 +36,35 @@
 
         <div id="main-play-area">
             <div id="status">Connecting...</div>
+            <div id="reaper-status" style="color: #ff4d4d; font-weight: bold; display: none;"></div>
+
             <div id="deck-area">
-                <div id="draw-pile" class="card back">DECK</div>
+                <div id="draw-pile" class="card back" onclick="emitDraw()">DECK</div>
                 <div id="top-card" class="card">?</div>
             </div>
             
             <div id="controls">
-                 <button id="uno-btn" onclick="emitUno()">SAY UNO!</button>
-                 <button id="penalty-btn" onclick="emitPenalty()">PENALTY!</button>
-                 <button id="pass-btn" onclick="emitPass()">PASS</button>
+                 <button id="uno-btn" onclick="emitUno()" class="ctrl-btn">SAY UNO!</button>
+                 <button id="penalty-btn" onclick="emitPenalty()" class="ctrl-btn">PENALTY!</button>
+                 <button id="pass-btn" onclick="emitPass()" class="ctrl-btn">PASS</button>
             </div>
 
             <div id="my-hand"></div>
+
+            <div id="bottom-scoreboard">
+                <div class="scoreboard-title">TOURNAMENT STANDINGS</div>
+                <div id="live-scores-container"></div>
+            </div>
         </div> 
+
+        <div id="chat-container">
+            <div class="chat-header">ROOM CHAT</div>
+            <div id="chat-messages"></div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Type message..." maxlength="50">
+                <button onclick="sendChatMessage()">SEND</button>
+            </div>
+        </div>
     </div> 
 
     <div id="scoreboard-overlay">

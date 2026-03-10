@@ -5,34 +5,41 @@ body {
     font-family: 'Segoe UI', sans-serif; 
     text-align: center; 
     margin: 0; 
-    overflow: hidden; 
+    /* Changed overflow to allow vertical scroll on mobile if needed */
+    overflow-x: hidden;
+    min-height: 100dvh; 
 }
 
 #game-container { 
     display: none; 
-    height: 100vh; 
+    height: 100dvh; 
     width: 100vw;
+    /* Grid layout: Sidebar | Main | Chat */
+    display: grid;
+    grid-template-columns: 220px 1fr 250px;
+    grid-template-rows: 1fr;
 }
 
 /* --- 2. Sidebar --- */
 #sidebar { 
-    width: 220px; 
     background: #222; 
     border-right: 2px solid #444; 
-    padding: 20px; 
+    padding: 15px; 
     text-align: left; 
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
 }
 
 #room-display {
-    padding: 15px;
+    padding: 10px;
     background: #111;
     border: 1px dashed gold;
     color: gold;
     font-weight: bold;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     text-align: center;
+    font-size: 0.9rem;
 }
 
 .stat-row { 
@@ -41,152 +48,143 @@ body {
     background: #333; 
     border-radius: 5px; 
     border-left: 4px solid gold; 
+    font-size: 0.85rem;
 }
 
-.stat-row.offline {
-    border-left-color: #e74c3c !important;
-    opacity: 0.5;
-}
-
-.deck-count-text {
-    margin-top: auto;
-    border-top: 2px solid #444; 
-    padding-top: 15px;
-    color: #f1c40f;
-    font-weight: bold;
-    text-transform: uppercase;
-}
+.stat-row.offline { border-left-color: #e74c3c !important; opacity: 0.5; }
 
 /* --- 3. Main Play Area --- */
 #main-play-area { 
-    flex-grow: 1; 
     display: flex; 
     flex-direction: column; 
-    padding: 20px; 
+    padding: 10px;
+    overflow-y: auto;
 }
 
-#status { margin-bottom: 20px; font-weight: bold; font-size: 1.2rem; }
+#status { margin-top: 10px; font-weight: bold; font-size: 1.1rem; }
 
 #deck-area {
     display: flex;
     justify-content: center;
-    gap: 30px;
-    margin: 40px 0;
+    gap: 20px;
+    margin: 20px 0;
 }
 
 /* --- 4. Card Styles (70x100) --- */
 .card {
-    flex: 0 0 auto; 
+    flex: 0 0 70px; /* Problem 2 Fix: Stop shrinking */
     width: 70px; 
     height: 100px;
-    margin: 0 5px; 
     border: 3px solid white; 
     border-radius: 8px;
     display: flex; 
     align-items: center; 
     justify-content: center;
-    font-size: 18px; 
+    font-size: 16px; 
     font-weight: bold; 
     cursor: pointer; 
     transition: transform 0.2s;
-    user-select: none; 
+    user-select: none;
+    position: relative;
 }
 
-.card:hover { transform: translateY(-10px); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+.card:hover { transform: translateY(-5px); }
 
 .red { background: #e74c3c; } 
 .blue { background: #3498db; }
 .green { background: #2ecc71; } 
 .yellow { background: #f1c40f; color: black; }
 .black { background: #222; } 
-.back { background: #555; border-color: #777; }
+.back { background: #444; border-color: #666; }
 
-/* --- Horizontal Hand Fix --- */
+/* --- 5. Horizontal Hand Fix --- */
 #my-hand {
     display: flex;
     flex-direction: row; 
-    flex-wrap: nowrap;   /* CRITICAL: Prevents cards from jumping to row 2 */
-    justify-content: flex-start; /* Keeps cards starting from the left */
+    flex-wrap: nowrap;
+    justify-content: flex-start;
     align-items: center;
-    
-    /* Scroll Logic */
-    overflow-x: auto;    /* Enables horizontal scrollbar */
-    overflow-y: hidden;  /* Prevents vertical jumping */
-    -webkit-overflow-scrolling: touch; /* Smooth momentum scroll for mobile */
-    
-    /* Sizing Logic */
-    width: 100%;         /* Fill the play area */
-    max-width: 80vw;     /* Prevents it from pushing into the sidebar */
-    min-height: 150px;
+    overflow-x: auto; 
+    overflow-y: hidden;
+    width: 95%;
+    max-width: 800px;
+    min-height: 130px;
     padding: 10px;
-    margin: 0 auto;
-    scrollbar-width: thin; /* Clean look for Firefox */
+    margin: 10px auto;
+    scrollbar-width: thin;
+    scrollbar-color: gold #333;
 }
 
-/* Custom Scrollbar for Chrome/Edge/Safari */
-#my-hand::-webkit-scrollbar {
-    height: 8px;
-}
-#my-hand::-webkit-scrollbar-thumb {
-    background: gold;    /* Makes the scrollbar visible so you know it's there */
-    border-radius: 10px;
-};
+#my-hand::-webkit-scrollbar { height: 8px; }
+#my-hand::-webkit-scrollbar-thumb { background: gold; border-radius: 10px; }
 
-/* --- 6. Controls --- */
-#controls {
+/* --- 6. New UI Components (Chat & Scoreboard) --- */
+
+/* Blue Area: Chat */
+#chat-container {
+    background: #1a1a1a;
+    border-left: 2px solid #3498db; /* Blue Border */
     display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin: 20px 0;
-    min-height: 50px;
-}
-
-#uno-btn, #pass-btn, #penalty-btn {
-    padding: 10px 25px;
-    border-radius: 25px;
-    font-weight: bold;
-    cursor: pointer;
-    border: 3px solid #fff;
-    color: white;
-    display: none; 
-}
-
-#uno-btn { background: #c0392b; }
-#penalty-btn { background: #f39c12; }
-#pass-btn { background: #e67e22; }
-
-/* --- 7. Overlays --- */
-#lobby-overlay, #scoreboard-overlay {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-#lobby-overlay { background: #111; z-index: 5000; }
-#scoreboard-overlay { background: rgba(0, 0, 0, 0.95); z-index: 6000; display: none; }
-
-.lobby-box, #scoreboard-content { background: #222; padding: 40px; border-radius: 15px; border: 3px solid gold; width: 320px; }
-
-.lobby-btn { width: 100%; padding: 12px; margin: 10px 0; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; background: #c0392b; color: white; }
-.lobby-btn.join { background: #27ae60; }
-
-#color-picker {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.9);
-    display: none;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 7000;
+    height: 100%;
 }
 
-.color-btns { display: flex; gap: 15px; }
-.color-btns button { width: 60px; height: 60px; border-radius: 50%; border: 3px solid white; cursor: pointer; }
-.btn-red { background: #e74c3c; } .btn-blue { background: #3498db; }
-.btn-green { background: #2ecc71; } .btn-yellow { background: #f1c40f; }
+.chat-header { background: #3498db; padding: 10px; font-weight: bold; font-size: 0.9rem; }
 
-.separator { margin: 20px 0; font-weight: bold; color: #777; }
-#room-input { width: 100%; padding: 12px; font-size: 1.5rem; text-align: center; border-radius: 8px; border: 2px solid #444; background: #333; color: white; box-sizing: border-box; }
+#chat-messages {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 10px;
+    text-align: left;
+    font-size: 0.85rem;
+}
+
+.chat-line { margin-bottom: 5px; word-wrap: break-word; }
+.chat-user { color: gold; font-weight: bold; }
+
+.chat-input-area { display: flex; padding: 10px; gap: 5px; background: #222; }
+#chat-input { flex-grow: 1; background: #333; color: white; border: 1px solid #444; padding: 5px; border-radius: 4px; }
+
+/* Red Area: Bottom Scoreboard */
+#bottom-scoreboard {
+    margin-top: auto;
+    background: #111;
+    border-top: 3px solid #e74c3c; /* Red Border */
+    padding: 10px;
+}
+
+.scoreboard-title { font-size: 0.75rem; color: #e74c3c; font-weight: bold; margin-bottom: 5px; }
+
+#live-scores-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.live-score-item { background: #222; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; }
+.p-score { color: gold; font-weight: bold; }
+
+/* --- 7. Responsive Mobile Adjustments --- */
+@media (max-width: 800px) {
+    #game-container {
+        grid-template-columns: 1fr; /* Stack everything vertically */
+        grid-template-rows: auto 1fr auto auto;
+        display: block; /* Fallback for better mobile scrolling */
+        height: auto;
+        overflow-y: auto;
+    }
+
+    #sidebar { width: 100%; border-right: none; border-bottom: 2px solid #444; height: auto; }
+    #chat-container { height: 300px; border-left: none; border-top: 2px solid #3498db; }
+    #my-hand { max-width: 100%; }
+}
+
+/* --- 8. Overlays & Misc --- */
+#lobby-overlay, #scoreboard-overlay {
+    position: fixed; inset: 0; display: flex; justify-content: center; align-items: center;
+    background: rgba(0,0,0,0.9); z-index: 5000;
+}
+.lobby-box, #scoreboard-content { background: #222; padding: 30px; border-radius: 15px; border: 3px solid gold; width: 280px; }
+.lobby-btn { width: 100%; padding: 12px; margin: 10px 0; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; background: #c0392b; color: white; }
+.ctrl-btn { padding: 10px 20px; border-radius: 20px; font-weight: bold; color: white; border: 2px solid white; cursor: pointer; }
