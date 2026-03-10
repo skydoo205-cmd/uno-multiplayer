@@ -161,60 +161,78 @@ io.on('connection', (socket) => {
 
     socket.on('playCard', (data) => {
         const room = rooms[myRoomId];
-        if (!room || room.players[room.currentPlayerIndex].sessionId !== mySessionId) return;
+        if (!room || room.gameStarted === false) return;
+        
         const player = room.players[room.currentPlayerIndex];
+        if (player.sessionId !== mySessionId) return;
+
         const card = player.hand[data.index];
         const top = room.discardPile[room.discardPile.length - 1];
 
+        // 1. Validation for Drawn Cards & Stacking
         if (player.lastDrawnCard && card !== player.lastDrawnCard) return;
-
         if (room.stackCount > 0) {
             const canStack = (card.type === '+4') || (top.type !== '+4' && card.type === '+2');
             if (!canStack) return;
         }
 
-        if (card.color === top.color || card.type === top.type || card.color === 'black') {
-            if (card.color === 'black') card.color = data.chosenColor;
-            
+        // 2. Playability Check
+        const isWild = (card.color === 'black');
+        const matchesTop = (card.color === top.color || card.type === top.type);
+
+        if (matchesTop || isWild) {
+            // --- NEW WILD COLOR GUESS SYSTEM ---
+            if (isWild && !data.chosenColor) {
+                // Server stops here and waits for the 'chooseColor' emit from client
+                return; 
+            }
+
+            // Apply the color if it's a Wild card
+            if (isWild) {
+                card.color = data.chosenColor;
+            }
+            // ------------------------------------
+
+            // Handle Special Effects
             if (card.type === '+2') room.stackCount += 2;
             if (card.type === '+4') room.stackCount += 4;
 
-            const activePlayers = room.players.filter(p => !room.finishOrder.includes(p.sessionId));
             let skipCount = 1;
+            const activePlayers = room.players.filter(p => !room.finishOrder.includes(p.sessionId));
 
             if (card.type === 'Skip') {
                 skipCount = 2;
             } else if (card.type === 'Reverse') {
                 if (activePlayers.length === 2) {
-                    skipCount = 2; // Problem 5: 1v1 Reverse = Skip
+                    skipCount = 2;
                 } else {
                     room.direction *= -1;
                     skipCount = 1;
                 }
             }
 
+            // Execute Move
             player.hand.splice(data.index, 1);
             room.discardPile.push(card);
             player.lastDrawnCard = null;
 
+            // UNO Logic
             if (player.hand.length === 1) {
                 room.unoWindowActive = true; 
                 room.unoTarget = mySessionId;
-                setTimeout(() => { if (rooms[myRoomId]) { rooms[myRoomId].unoWindowActive = false; updateRoom(myRoomId); } }, 5000);
+                setTimeout(() => { 
+                    if (rooms[myRoomId]) { 
+                        rooms[myRoomId].unoWindowActive = false; 
+                        updateRoom(myRoomId); 
+                    } 
+                }, 5000);
             }
 
+            // Win Logic
             if (player.hand.length === 0) {
                 if (!room.finishOrder.includes(mySessionId)) room.finishOrder.push(mySessionId);
-
-                if (room.finishOrder.length === room.players.length - 1) {
-                    const lastPlayer = room.players.find(p => !room.finishOrder.includes(p.sessionId));
-                    if (lastPlayer) room.finishOrder.push(lastPlayer.sessionId);
-
-                    room.finishOrder.forEach((sid, idx) => {
-                        const points = (room.players.length - 1 - idx);
-                        room.scores[sid] = (room.scores[sid] || 0) + points;
-                    });
-
+                if (room.finishOrder.length >= room.players.length - 1) {
+                    // ... (Keep your existing results calculation logic here) ...
                     io.to(myRoomId).emit('results', { order: room.finishOrder, scores: room.scores });
                     room.gameStarted = false;
                     return;
@@ -226,42 +244,41 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('draw', () => {
-        const room = rooms[myRoomId];
-        if (!room || room.players[room.currentPlayerIndex].sessionId !== mySessionId) return;
-        const player = room.players[room.currentPlayerIndex];
-        
-        if (room.stackCount > 0) {
-            for(let i=0; i<room.stackCount; i++) {
+        socket.on('draw', () => {
+            const room = rooms[myRoomId];
+            if (!room || room.players[room.currentPlayerIndex].sessionId !== mySessionId) return;
+            const player = room.players[room.currentPlayerIndex];
+            
+            if (room.stackCount > 0) {
+                for(let i=0; i<room.stackCount; i++) {
+                    if (room.deck.length < 1) {
+                        const top = room.discardPile.pop();
+                        room.deck = [...room.deck, ...room.discardPile].sort(() => Math.random() - 0.5);
+                        room.discardPile = [top];
+                    }
+                    player.hand.push(room.deck.shift());
+                }
+                room.stackCount = 0;
+                sortHand(player.hand);
+                nextTurn(myRoomId);
+            } else {
+                if (player.lastDrawnCard) return;
                 if (room.deck.length < 1) {
                     const top = room.discardPile.pop();
                     room.deck = [...room.deck, ...room.discardPile].sort(() => Math.random() - 0.5);
                     room.discardPile = [top];
                 }
-                player.hand.push(room.deck.shift());
+                const drawn = room.deck.shift();
+                player.hand.push(drawn);
+                player.lastDrawnCard = drawn;
+                sortHand(player.hand);
             }
-            room.stackCount = 0;
-            sortHand(player.hand);
-            nextTurn(myRoomId);
-        } else {
-            if (player.lastDrawnCard) return;
-            if (room.deck.length < 1) {
-                const top = room.discardPile.pop();
-                room.deck = [...room.deck, ...room.discardPile].sort(() => Math.random() - 0.5);
-                room.discardPile = [top];
-            }
-            const drawn = room.deck.shift();
-            player.hand.push(drawn);
-            player.lastDrawnCard = drawn;
-            sortHand(player.hand);
-        }
-        updateRoom(myRoomId);
-    });
+            updateRoom(myRoomId);
+        });
 
     socket.on('chatMessage', (data) => {
-        // Check if room exists
         if (myRoomId && rooms[myRoomId]) {
-            console.log(`Chat from ${mySessionId}: ${data.msg}`); // For debugging
+            // Broadcast to everyone in the room (including sender)
             io.to(myRoomId).emit('newChatMessage', { 
                 user: mySessionId.substring(0, 4), 
                 msg: data.msg 

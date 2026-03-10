@@ -43,49 +43,59 @@ socket.on('init', data => {
 });
 
 function updateUI(data) {
+    // 1. Core Logic Variables
     myTurn = (sessionId === data.turnId);
     const isTarget = (data.windowActive && data.unoTarget === sessionId);
     const canPenalize = (data.windowActive && data.unoTarget !== sessionId);
 
-    // Status & Reaper Timer
+    // 2. Status & Reaper Timer
     const status = document.getElementById('status');
     status.innerText = myTurn ? (data.waitingForPass ? "PLAY DRAWN CARD OR PASS" : "YOUR TURN!") : "Waiting...";
     status.style.color = myTurn ? "#2ecc71" : "white";
 
     const reaperEl = document.getElementById('reaper-status');
-    // If the server sends a time AND it's greater than 0, show it
     if (data.reaperTimeLeft && data.reaperTimeLeft > 0) {
         reaperEl.style.display = 'block';
         reaperEl.innerText = `⚠️ Connection Timeout: ${data.reaperTimeLeft}s`;
     } else {
-        // If no time is sent, someone reconnected or it's a new game -> HIDE IT
         reaperEl.style.display = 'none';
-        reaperEl.innerText = ""; 
     }
-}
 
-    // Controls
+    // 3. Controls (Buttons)
+    // IMPORTANT: These must be INSIDE the function to work!
     document.getElementById('uno-btn').style.display = isTarget ? 'block' : 'none';
     document.getElementById('penalty-btn').style.display = canPenalize ? 'block' : 'none';
     document.getElementById('pass-btn').style.display = (myTurn && data.waitingForPass) ? 'block' : 'none';
 
-    // Sidebar Stats
-    document.getElementById('stats-list').innerHTML = data.cardCounts.map(p => `
-        <div class="stat-row ${!p.online ? 'offline' : ''}">
-            Player ${p.id.substring(0,4)} ${p.id === sessionId ? '(YOU)' : ''}<br>
-            <strong>${p.count} Cards</strong>
-        </div>
-    `).join('');
+    // 4. Sidebar Stats (Player Names & Online Status)
+    const statsList = document.getElementById('stats-list');
+    if (statsList && data.cardCounts) {
+        statsList.innerHTML = data.cardCounts.map(p => `
+            <div class="stat-row ${!p.online ? 'offline' : ''}" style="padding: 10px; margin-bottom: 5px; background: rgba(255,255,255,0.05); border-radius: 5px;">
+                <span style="color: ${p.online ? '#2ecc71' : '#e74c3c'}">●</span> 
+                Player ${p.id.substring(0,4)} ${p.id === sessionId ? '<strong>(YOU)</strong>' : ''}<br>
+                <small>${p.count} Cards</small>
+            </div>
+        `).join('');
+    }
 
-    // Bottom Scoreboard (Live Standings)
-    document.getElementById('live-scores-container').innerHTML = data.cardCounts.map(p => `
-        <div class="live-score-item">
-            <span class="p-name">${p.id.substring(0,4)}</span>: 
-            <span class="p-score">${data.scores[p.id] || 0}</span>
-        </div>
-    `).join('');
+    // 5. Bottom Scoreboard (Live Standings)
+    const liveScores = document.getElementById('live-scores-container');
+    if (liveScores && data.cardCounts) {
+        liveScores.innerHTML = data.cardCounts.map(p => `
+            <div class="live-score-item">
+                <span class="p-name">${p.id.substring(0,4)}</span>: 
+                <span class="p-score">${data.scores[p.id] || 0}</span>
+            </div>
+        `).join('');
+    }
 
-    document.getElementById('deck-info').innerText = `Deck: ${data.deckCount} | Stack: ${data.stack}`;
+    // 6. Deck & Stack Info
+    const deckInfo = document.getElementById('deck-info');
+    if (deckInfo) {
+        deckInfo.innerText = `Deck: ${data.deckCount} | Stack: ${data.stack || 0}`;
+    }
+} // <--- THIS IS THE ONLY CLOSING BRACE NEEDED
 
 
 // --- RENDERING ---
@@ -115,12 +125,13 @@ function renderTop(card) {
 }
 
 // --- CHAT LOGIC ---
+// Fix: Chat Send Button Logic
 window.sendChatMessage = () => {
     const input = document.getElementById('chat-input');
     const msg = input.value.trim();
-    if (msg) {
-        socket.emit('chatMessage', { msg });
-        input.value = '';
+    if (msg && currentRoom) {
+        socket.emit('chatMessage', { msg: msg }); // Send to server
+        input.value = ''; // Clear input immediately
     }
 };
 
@@ -131,21 +142,26 @@ document.getElementById('chat-input').addEventListener('keypress', (e) => {
 
 socket.on('newChatMessage', data => {
     const box = document.getElementById('chat-messages');
-    if (!box) return; // Safety check
-
-    const msgDiv = document.createElement('div');
-    msgDiv.className = 'chat-line';
-    msgDiv.innerHTML = `<span style="color: gold; font-weight: bold;">${data.user}:</span> <span style="color: white;">${data.msg}</span>`;
-    
-    box.appendChild(msgDiv);
-    
-    box.scrollTop = box.scrollHeight; // Auto-scroll chat
+    if (box) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'chat-line';
+        msgDiv.innerHTML = `<span style="color: gold; font-weight: bold;">${data.user}:</span> <span style="color: white;">${data.msg}</span>`;
+        box.appendChild(msgDiv);
+        box.scrollTop = box.scrollHeight; // Auto-scroll to newest message
+    }
 });
 
 // --- EMITTERS ---
-window.chooseColor = (c) => {
+// Fix: Color Picker Deadlock
+window.chooseColor = (color) => {
+    // 1. Hide the UI immediately
     document.getElementById('color-picker').style.display = 'none';
-    socket.emit('playCard', { index: pendingIdx, chosenColor: c });
+    
+    // 2. Tell the server: "I picked this color for the card at this index"
+    socket.emit('playCard', { 
+        index: pendingIdx, 
+        chosenColor: color 
+    });
 };
 
 window.emitUno = () => socket.emit('unoAction', 'safe');
@@ -201,9 +217,13 @@ socket.on('restartProgress', data => {
     document.getElementById('restart-status').innerText = `Ready: ${data.current}/${data.total}`; 
 });
 
+// Add or Update this listener in script.js
 socket.on('roomDestroyed', (reason) => { 
-    alert(reason || "Tournament ended."); 
-    location.reload(); 
+    // Show an alert so the player knows why they were kicked
+    alert(reason || "Connection timed out. Returning to lobby."); 
+    
+    // This command reloads the entire page, bringing them back to the 'Create Room' screen
+    window.location.reload(); 
 });
 
 socket.on('status', msg => { document.getElementById('status').innerText = msg; });
