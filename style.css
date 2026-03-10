@@ -181,10 +181,54 @@ body {
 }
 
 /* --- 8. Overlays & Misc --- */
+
+/* Shared properties for both overlays */
 #lobby-overlay, #scoreboard-overlay {
-    position: fixed; inset: 0; display: flex; justify-content: center; align-items: center;
-    background: rgba(0,0,0,0.9); z-index: 5000;
+    position: fixed; 
+    inset: 0; 
+    justify-content: center; 
+    align-items: center;
+    background: rgba(0,0,0,0.95); 
 }
-.lobby-box, #scoreboard-content { background: #222; padding: 30px; border-radius: 15px; border: 3px solid gold; width: 280px; }
-.lobby-btn { width: 100%; padding: 12px; margin: 10px 0; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; background: #c0392b; color: white; }
-.ctrl-btn { padding: 10px 20px; border-radius: 20px; font-weight: bold; color: white; border: 2px solid white; cursor: pointer; }
+
+/* LOBBY: Visible by default at start */
+#lobby-overlay {
+    display: flex; 
+    z-index: 9999; /* Always on top */
+}
+
+/* SCOREBOARD: Hidden by default */
+#scoreboard-overlay {
+    display: none; 
+    z-index: 8000; /* Above game, below lobby */
+}
+
+/* Box Styling */
+.lobby-box, #scoreboard-content { 
+    background: #222; 
+    padding: 30px; 
+    border-radius: 15px; 
+    border: 3px solid gold; 
+    width: 280px; 
+}
+
+.lobby-btn { 
+    width: 100%; 
+    padding: 12px; 
+    margin: 10px 0; 
+    font-weight: bold; 
+    border: none; 
+    border-radius: 8px; 
+    cursor: pointer; 
+    background: #c0392b; 
+    color: white; 
+}
+
+.ctrl-btn { 
+    padding: 10px 20px; 
+    border-radius: 20px; 
+    font-weight: bold; 
+    color: white; 
+    border: 2px solid white; 
+    cursor: pointer; 
+}

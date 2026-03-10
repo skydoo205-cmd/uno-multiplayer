@@ -18,9 +18,9 @@ window.joinRoom = () => {
 
 socket.on('roomJoined', (id) => {
     currentRoom = id;
-    document.getElementById('lobby-overlay').style.display = 'none';
-    document.getElementById('game-container').style.display = 'flex';
-    document.getElementById('room-display').innerText = `ROOM: ${id}`;
+    document.getElementById('lobby-overlay').style.display = 'none'; // Turn off lobby
+    document.getElementById('scoreboard-overlay').style.display = 'none'; // Ensure scoreboard is off
+    document.getElementById('game-container').style.display = 'grid';
 });
 
 // --- CORE GAME UPDATES ---
@@ -136,15 +136,35 @@ window.emitDraw = () => { if(myTurn) socket.emit('draw'); };
 
 // --- TOURNAMENT RESULTS ---
 socket.on('results', data => {
+    // 1. Update the Post-Game Overlay (The Pop-up)
     document.getElementById('score-list').innerHTML = data.order.map((id, i) => `
         <div class="score-row" style="display:flex; justify-content:space-between; padding:10px; background:#333; margin:5px; border-left:3px solid gold;">
-            <span>${i+1}. ${id.substring(0,4)}</span>
+            <span>${i+1}. ${id.substring(0,4)} ${id === sessionId ? '<strong>(YOU)</strong>' : ''}</span>
             <span>Total: ${data.scores[id]}</span>
         </div>
     `).join('');
     
+    // 2. Sync the Live Scoreboard (The red area at the bottom)
+    // This ensures that even behind the pop-up, the standings are updated
+    const liveContainer = document.getElementById('live-scores-container');
+    if (liveContainer) {
+        liveContainer.innerHTML = Object.keys(data.scores).map(id => `
+            <div class="live-score-item">
+                <span class="p-name">${id.substring(0,4)}</span>: 
+                <span class="p-score">${data.scores[id]}</span>
+            </div>
+        `).join('');
+    }
+
+    // 3. Reset the Next Round Button
     const btn = document.getElementById('next-round-btn');
-    btn.disabled = false; btn.innerText = "Next Round"; btn.style.opacity = "1";
+    if (btn) {
+        btn.disabled = false; 
+        btn.innerText = "Next Round"; 
+        btn.style.opacity = "1";
+    }
+
+    // 4. Clear old statuses and SHOW the overlay
     document.getElementById('restart-status').innerText = "";
     document.getElementById('scoreboard-overlay').style.display = 'flex';
 });

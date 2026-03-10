@@ -27,7 +27,7 @@
         </div>
     </div>
 
-    <div id="game-container">
+    <div id="game-container" style="display: none;">
         <div id="sidebar">
             <div id="room-display">ROOM: ----</div>
             <div id="stats-list"></div>
@@ -44,15 +44,15 @@
             </div>
             
             <div id="controls">
-                 <button id="uno-btn" onclick="emitUno()" class="ctrl-btn">SAY UNO!</button>
-                 <button id="penalty-btn" onclick="emitPenalty()" class="ctrl-btn">PENALTY!</button>
-                 <button id="pass-btn" onclick="emitPass()" class="ctrl-btn">PASS</button>
+                <button id="uno-btn" onclick="emitUno()" class="ctrl-btn">SAY UNO!</button>
+                <button id="penalty-btn" onclick="emitPenalty()" class="ctrl-btn">PENALTY!</button>
+                <button id="pass-btn" onclick="emitPass()" class="ctrl-btn">PASS</button>
             </div>
 
             <div id="my-hand"></div>
 
             <div id="bottom-scoreboard">
-                <div class="scoreboard-title">TOURNAMENT STANDINGS</div>
+                <div class="scoreboard-title">LIVE TOURNAMENT STANDINGS</div>
                 <div id="live-scores-container"></div>
             </div>
         </div> 
@@ -67,13 +67,13 @@
         </div>
     </div> 
 
-    <div id="scoreboard-overlay">
+    <div id="scoreboard-overlay" style="display: none;">
         <div id="scoreboard-content">
             <h2>Tournament Results</h2>
             <div id="score-list"></div>
             <div id="restart-status" style="color: gold; margin: 10px 0;"></div>
             <button id="next-round-btn" onclick="requestRestart()" class="lobby-btn join">Next Round</button>
-            <button onclick="exitToLobby()" class="lobby-btn" style="background:#c0392b; border: 2px solid #fff;">Exit Tournament</button>
+            <button onclick="exitToLobby()" class="lobby-btn" style="background:#c0392b; border: 2px solid #fff; margin-top: 10px;">Exit Tournament</button>
         </div>
     </div>
 

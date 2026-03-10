@@ -86,17 +86,19 @@ function startRound(roomId) {
     const room = rooms[roomId];
     if (!room) return;
     
-    // Reset Round State (Problem 6)
-    room.deck = createDeck();
+    // CRITICAL RESET (Prevents Game 2 Crashes)
     room.finishOrder = [];
     room.stackCount = 0;
     room.direction = 1;
     room.currentPlayerIndex = 0;
 
+    // Deck and hand logic...
+    room.deck = createDeck();
     room.players.forEach(p => { 
-        p.hand = sortHand(room.deck.splice(0, 10)); 
+        p.hand = sortHand(room.deck.splice(0, 10)); // Uses the new sorting
         p.lastDrawnCard = null; 
     });
+    // ...
 
     // Safe Start Validator (Problem 1)
     let firstCard = room.deck.shift();
@@ -258,7 +260,7 @@ io.on('connection', (socket) => {
 
     socket.on('chatMessage', (data) => {
         if (myRoomId) {
-            io.to(myRoomId).emit('newChatMessage', { 
+            io.to(myRoomId && rooms[myRoomId]).emit('newChatMessage', { 
                 user: mySessionId.substring(0, 4), 
                 msg: data.msg 
             });
