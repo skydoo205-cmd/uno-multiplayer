@@ -21,14 +21,25 @@ socket.on('roomJoined', (id) => {
     document.getElementById('lobby-overlay').style.display = 'none'; // Turn off lobby
     document.getElementById('scoreboard-overlay').style.display = 'none'; // Ensure scoreboard is off
     document.getElementById('game-container').style.display = 'grid';
+
+    // FORCE UPDATE the Room Display immediately
+    const roomEl = document.getElementById('room-display');
+    if (roomEl) roomEl.innerText = `ROOM: ${id}`;
 });
 
 // --- CORE GAME UPDATES ---
 socket.on('init', data => {
     document.getElementById('scoreboard-overlay').style.display = 'none';
+    
+    // Clear the "Lobby: X/X" text by updating the status div
+    const status = document.getElementById('status');
+    if (data.gameStarted || data.hand.length > 0) {
+        // Hand is rendered, so game is active
+        updateUI(data); 
+    }
+    
     renderHand(data.hand);
     renderTop(data.topCard);
-    updateUI(data);
 });
 
 function updateUI(data) {
