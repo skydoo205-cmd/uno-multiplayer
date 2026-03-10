@@ -136,10 +136,17 @@ body {
     overflow-y: auto;
     padding: 10px;
     text-align: left;
-    font-size: 0.85rem;
+    color: white; /* Ensure text is white! */
+    background: #1a1a1a;
+    display: flex;
+    flex-direction: column; /* Stack messages vertically */
 }
 
-.chat-line { margin-bottom: 5px; word-wrap: break-word; }
+.chat-line {
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    word-wrap: break-word;
+}
 .chat-user { color: gold; font-weight: bold; }
 
 .chat-input-area { display: flex; padding: 10px; gap: 5px; background: #222; }
@@ -224,13 +231,49 @@ body {
     color: white; 
 }
 
-.ctrl-btn { 
-    padding: 10px 20px; 
-    border-radius: 20px; 
-    font-weight: bold; 
-    color: white; 
-    border: 2px solid white; 
-    cursor: pointer; 
+/* --- Controls Visibility Fix --- */
+#controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 15px 0;
+    min-height: 60px;
+}
+
+.ctrl-btn {
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-weight: 800; /* Extra Bold */
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: 3px solid rgba(255, 255, 255, 0.8);
+    color: white; /* Text color */
+    text-transform: uppercase;
+    transition: transform 0.1s, brightness 0.2s;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+.ctrl-btn:active { transform: scale(0.95); }
+
+/* Specific Colors for each action */
+#uno-btn { 
+    background: #e74c3c; /* Bright Red */
+    display: none; 
+}
+
+#penalty-btn { 
+    background: #f39c12; /* Deep Orange/Gold */
+    display: none; 
+}
+
+#pass-btn { 
+    background: #8e44ad; /* Purple - distinctly different */
+    display: none; 
+}
+
+/* Hover effect to show they are clickable */
+.ctrl-btn:hover {
+    filter: brightness(1.2);
 }
 
 /* --- Color Picker Overlay --- */

@@ -259,8 +259,10 @@ io.on('connection', (socket) => {
     });
 
     socket.on('chatMessage', (data) => {
-        if (myRoomId) {
-            io.to(myRoomId && rooms[myRoomId]).emit('newChatMessage', { 
+        // Check if room exists
+        if (myRoomId && rooms[myRoomId]) {
+            console.log(`Chat from ${mySessionId}: ${data.msg}`); // For debugging
+            io.to(myRoomId).emit('newChatMessage', { 
                 user: mySessionId.substring(0, 4), 
                 msg: data.msg 
             });
@@ -273,14 +275,25 @@ io.on('connection', (socket) => {
             const p = room.players.find(pl => pl.sessionId === mySessionId);
             if (p) p.socketId = null;
 
-            // Unified 2-Minute Reaper (Problem 3)
             const onlineCount = room.players.filter(pl => pl.socketId).length;
+            
+            // If a player leaves, start the Reaper
             if (onlineCount < room.maxPlayers && !room.reaperTimer) {
                 room.reaperEnd = Date.now() + 120000;
-                room.reaperTimer = setTimeout(() => {
-                    io.to(myRoomId).emit('roomDestroyed', "Room expired: Players inactive for 2 minutes.");
-                    delete rooms[myRoomId];
-                }, 120000);
+                
+                // Create an interval to "Tick" every second
+                room.reaperTimer = setInterval(() => {
+                    const timeLeft = Math.ceil((room.reaperEnd - Date.now()) / 1000);
+                    
+                    if (timeLeft <= 0) {
+                        io.to(myRoomId).emit('roomDestroyed', "Room expired: Timeout.");
+                        clearInterval(room.reaperTimer);
+                        delete rooms[myRoomId];
+                    } else {
+                        // Send the update so the UI doesn't get "stuck"
+                        updateRoom(myRoomId);
+                    }
+                }, 1000);
             }
             updateRoom(myRoomId);
         }

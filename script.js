@@ -37,7 +37,7 @@ socket.on('init', data => {
         // Hand is rendered, so game is active
         updateUI(data); 
     }
-    
+
     renderHand(data.hand);
     renderTop(data.topCard);
 });
@@ -53,12 +53,16 @@ function updateUI(data) {
     status.style.color = myTurn ? "#2ecc71" : "white";
 
     const reaperEl = document.getElementById('reaper-status');
-    if (data.reaperTimeLeft) {
+    // If the server sends a time AND it's greater than 0, show it
+    if (data.reaperTimeLeft && data.reaperTimeLeft > 0) {
         reaperEl.style.display = 'block';
         reaperEl.innerText = `⚠️ Connection Timeout: ${data.reaperTimeLeft}s`;
     } else {
+        // If no time is sent, someone reconnected or it's a new game -> HIDE IT
         reaperEl.style.display = 'none';
+        reaperEl.innerText = ""; 
     }
+}
 
     // Controls
     document.getElementById('uno-btn').style.display = isTarget ? 'block' : 'none';
@@ -82,7 +86,7 @@ function updateUI(data) {
     `).join('');
 
     document.getElementById('deck-info').innerText = `Deck: ${data.deckCount} | Stack: ${data.stack}`;
-}
+
 
 // --- RENDERING ---
 function renderHand(hand) {
@@ -127,10 +131,14 @@ document.getElementById('chat-input').addEventListener('keypress', (e) => {
 
 socket.on('newChatMessage', data => {
     const box = document.getElementById('chat-messages');
+    if (!box) return; // Safety check
+
     const msgDiv = document.createElement('div');
     msgDiv.className = 'chat-line';
-    msgDiv.innerHTML = `<span class="chat-user">${data.user}:</span> ${data.msg}`;
+    msgDiv.innerHTML = `<span style="color: gold; font-weight: bold;">${data.user}:</span> <span style="color: white;">${data.msg}</span>`;
+    
     box.appendChild(msgDiv);
+    
     box.scrollTop = box.scrollHeight; // Auto-scroll chat
 });
 
