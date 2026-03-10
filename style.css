@@ -5,7 +5,6 @@ body {
     font-family: 'Segoe UI', sans-serif; 
     text-align: center; 
     margin: 0; 
-    /* Changed overflow to allow vertical scroll on mobile if needed */
     overflow-x: hidden;
     min-height: 100dvh; 
 }
@@ -14,13 +13,12 @@ body {
     display: none; 
     height: 100dvh; 
     width: 100vw;
-    /* Grid layout: Sidebar | Main | Chat */
     display: grid;
     grid-template-columns: 220px 1fr 250px;
     grid-template-rows: 1fr;
 }
 
-/* --- 2. Sidebar --- */
+/* --- 2. Sidebar & Player Stats --- */
 #sidebar { 
     background: #222; 
     border-right: 2px solid #444; 
@@ -49,9 +47,40 @@ body {
     border-radius: 5px; 
     border-left: 4px solid gold; 
     font-size: 0.85rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Requirement: Active Turn Glow */
+.stat-row.active-turn {
+    border-left-color: #2ecc71 !important;
+    background: rgba(46, 204, 113, 0.2) !important;
+    box-shadow: 0 0 15px rgba(46, 204, 113, 0.4);
+    transform: scale(1.05);
 }
 
 .stat-row.offline { border-left-color: #e74c3c !important; opacity: 0.5; }
+
+/* Requirement: Stack Tracker */
+#stack-tracker {
+    background: #e74c3c;
+    color: white;
+    padding: 10px;
+    border-radius: 5px;
+    font-weight: 900;
+    text-align: center;
+    margin-top: 10px;
+    border: 2px solid white;
+    text-transform: uppercase;
+    animation: pulse-red 1s infinite;
+}
+
+.deck-count-text {
+    margin-top: auto;
+    padding: 10px;
+    color: #888;
+    font-size: 0.8rem;
+    border-top: 1px solid #444;
+}
 
 /* --- 3. Main Play Area --- */
 #main-play-area { 
@@ -61,7 +90,20 @@ body {
     overflow-y: auto;
 }
 
-#status { margin-top: 10px; font-weight: bold; font-size: 1.1rem; }
+#status { 
+    margin-top: 10px; 
+    font-weight: bold; 
+    font-size: 1.1rem; 
+    transition: color 0.3s ease;
+}
+
+#reaper-status {
+    color: #ff4d4d;
+    font-weight: bold;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    text-align: center;
+}
 
 #deck-area {
     display: flex;
@@ -72,7 +114,7 @@ body {
 
 /* --- 4. Card Styles (70x100) --- */
 .card {
-    flex: 0 0 70px; /* Problem 2 Fix: Stop shrinking */
+    flex: 0 0 70px; 
     width: 70px; 
     height: 100px;
     border: 3px solid white; 
@@ -83,12 +125,18 @@ body {
     font-size: 16px; 
     font-weight: bold; 
     cursor: pointer; 
-    transition: transform 0.2s;
+    transition: transform 0.2s, box-shadow 0.3s;
     user-select: none;
     position: relative;
 }
 
-.card:hover { transform: translateY(-5px); }
+/* Requirement: Playable Card Aura */
+.playable-glow {
+    box-shadow: 0 0 20px 5px rgba(255, 215, 0, 0.8);
+    animation: card-pulse 1.5s infinite;
+}
+
+.card:hover { transform: translateY(-10px); z-index: 100; }
 
 .red { background: #e74c3c; } 
 .blue { background: #3498db; }
@@ -97,7 +145,7 @@ body {
 .black { background: #222; } 
 .back { background: #444; border-color: #666; }
 
-/* --- 5. Horizontal Hand Fix --- */
+/* --- 5. Hand Layout --- */
 #my-hand {
     display: flex;
     flex-direction: row; 
@@ -108,7 +156,7 @@ body {
     overflow-y: hidden;
     width: 95%;
     max-width: 800px;
-    min-height: 130px;
+    min-height: 135px;
     padding: 10px;
     margin: 10px auto;
     scrollbar-width: thin;
@@ -118,12 +166,10 @@ body {
 #my-hand::-webkit-scrollbar { height: 8px; }
 #my-hand::-webkit-scrollbar-thumb { background: gold; border-radius: 10px; }
 
-/* --- 6. New UI Components (Chat & Scoreboard) --- */
-
-/* Blue Area: Chat */
+/* --- 6. Chat Container (Blue Area) --- */
 #chat-container {
     background: #1a1a1a;
-    border-left: 2px solid #3498db; /* Blue Border */
+    border-left: 2px solid #3498db;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -136,27 +182,20 @@ body {
     overflow-y: auto;
     padding: 10px;
     text-align: left;
-    color: white; /* Ensure text is white! */
     background: #1a1a1a;
-    display: flex;
-    flex-direction: column; /* Stack messages vertically */
 }
 
-.chat-line {
-    margin-bottom: 8px;
-    font-size: 0.9rem;
-    word-wrap: break-word;
-}
+.chat-line { margin-bottom: 8px; font-size: 0.9rem; word-wrap: break-word; }
 .chat-user { color: gold; font-weight: bold; }
 
 .chat-input-area { display: flex; padding: 10px; gap: 5px; background: #222; }
 #chat-input { flex-grow: 1; background: #333; color: white; border: 1px solid #444; padding: 5px; border-radius: 4px; }
 
-/* Red Area: Bottom Scoreboard */
+/* --- 7. Bottom Scoreboard (Red Area) --- */
 #bottom-scoreboard {
     margin-top: auto;
     background: #111;
-    border-top: 3px solid #e74c3c; /* Red Border */
+    border-top: 3px solid #e74c3c;
     padding: 10px;
 }
 
@@ -169,54 +208,65 @@ body {
     flex-wrap: wrap;
 }
 
-.live-score-item { background: #222; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; }
+.live-score-item { 
+    background: #222; 
+    padding: 5px 10px; 
+    border-radius: 4px; 
+    font-size: 0.8rem; 
+    transition: background 0.2s;
+}
+.live-score-item:hover { background: #333; }
 .p-score { color: gold; font-weight: bold; }
 
-/* --- 7. Responsive Mobile Adjustments --- */
-@media (max-width: 800px) {
-    #game-container {
-        grid-template-columns: 1fr; /* Stack everything vertically */
-        grid-template-rows: auto 1fr auto auto;
-        display: block; /* Fallback for better mobile scrolling */
-        height: auto;
-        overflow-y: auto;
-    }
-
-    #sidebar { width: 100%; border-right: none; border-bottom: 2px solid #444; height: auto; }
-    #chat-container { height: 300px; border-left: none; border-top: 2px solid #3498db; }
-    #my-hand { max-width: 100%; }
+/* --- 8. Controls (Buttons) --- */
+#controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 15px 0;
+    min-height: 60px;
 }
 
-/* --- 8. Overlays & Misc --- */
+.ctrl-btn {
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: 3px solid rgba(255, 255, 255, 0.8);
+    color: white;
+    text-transform: uppercase;
+    transition: transform 0.1s, filter 0.2s;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
 
-/* Shared properties for both overlays */
+.ctrl-btn:active { transform: scale(0.95); }
+.ctrl-btn:hover { filter: brightness(1.2); }
+
+#uno-btn { background: #e74c3c; display: none; }
+#penalty-btn { background: #f39c12; display: none; }
+#pass-btn { background: #8e44ad; display: none; }
+
+/* --- 9. Overlays --- */
 #lobby-overlay, #scoreboard-overlay {
     position: fixed; 
     inset: 0; 
+    display: flex;
     justify-content: center; 
     align-items: center;
     background: rgba(0,0,0,0.95); 
 }
 
-/* LOBBY: Visible by default at start */
-#lobby-overlay {
-    display: flex; 
-    z-index: 9999; /* Always on top */
-}
+#lobby-overlay { z-index: 9999; }
+#scoreboard-overlay { z-index: 8000; }
 
-/* SCOREBOARD: Hidden by default */
-#scoreboard-overlay {
-    display: none; 
-    z-index: 8000; /* Above game, below lobby */
-}
-
-/* Box Styling */
 .lobby-box, #scoreboard-content { 
     background: #222; 
     padding: 30px; 
     border-radius: 15px; 
     border: 3px solid gold; 
     width: 280px; 
+    text-align: center;
 }
 
 .lobby-btn { 
@@ -229,100 +279,63 @@ body {
     cursor: pointer; 
     background: #c0392b; 
     color: white; 
+    transition: background 0.2s;
 }
 
-/* --- Controls Visibility Fix --- */
-#controls {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin: 15px 0;
-    min-height: 60px;
-}
+.lobby-btn:hover { background: #a93226; }
+.lobby-btn.join { background: #27ae60; }
+.lobby-btn.join:hover { background: #2ecc71; }
 
-.ctrl-btn {
-    padding: 12px 24px;
-    border-radius: 30px;
-    font-weight: 800; /* Extra Bold */
-    font-size: 0.9rem;
-    cursor: pointer;
-    border: 3px solid rgba(255, 255, 255, 0.8);
-    color: white; /* Text color */
-    text-transform: uppercase;
-    transition: transform 0.1s, brightness 0.2s;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-}
+.separator { margin: 15px 0; color: #666; font-size: 0.8rem; }
 
-.ctrl-btn:active { transform: scale(0.95); }
-
-/* Specific Colors for each action */
-#uno-btn { 
-    background: #e74c3c; /* Bright Red */
-    display: none; 
-}
-
-#penalty-btn { 
-    background: #f39c12; /* Deep Orange/Gold */
-    display: none; 
-}
-
-#pass-btn { 
-    background: #8e44ad; /* Purple - distinctly different */
-    display: none; 
-}
-
-/* Hover effect to show they are clickable */
-.ctrl-btn:hover {
-    filter: brightness(1.2);
-}
-
-/* --- Color Picker Overlay --- */
+/* --- 10. Color Picker --- */
 #color-picker {
     position: fixed;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%); /* Centers it exactly in the middle */
-    background: rgba(10, 10, 10, 0.98); /* Deep black background */
+    transform: translate(-50%, -50%);
+    background: rgba(10, 10, 10, 0.98);
     padding: 30px;
     border: 3px solid gold;
     border-radius: 20px;
-    display: none; /* JS will change this to 'flex' when needed */
+    display: none;
     flex-direction: column;
     align-items: center;
-    z-index: 10000; /* Stays above Chat and Cards */
-    box-shadow: 0 0 30px rgba(0,0,0,1);
+    z-index: 10000;
 }
 
-#color-picker p {
-    color: white;
-    font-size: 1.4rem;
-    font-weight: bold;
-    margin-bottom: 25px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.color-btns {
-    display: flex;
-    gap: 20px;
-}
-
+.color-btns { display: flex; gap: 20px; }
 .color-btns button {
-    width: 65px;
-    height: 65px;
-    border-radius: 50%; /* Makes them circles */
-    border: 4px solid white;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    width: 65px; height: 65px; border-radius: 50%; border: 4px solid white; cursor: pointer; transition: 0.2s;
 }
 
-.color-btns button:hover {
-    transform: scale(1.15);
-    box-shadow: 0 0 15px white;
-}
-
-/* Color Classes for Buttons */
 .btn-red { background: #e74c3c; }
 .btn-blue { background: #3498db; }
 .btn-green { background: #2ecc71; }
 .btn-yellow { background: #f1c40f; }
+.color-btns button:hover { transform: scale(1.1); box-shadow: 0 0 15px white; }
+
+/* --- 11. Animations --- */
+@keyframes card-pulse {
+    0% { box-shadow: 0 0 10px gold; }
+    50% { box-shadow: 0 0 25px gold; }
+    100% { box-shadow: 0 0 10px gold; }
+}
+
+@keyframes pulse-red {
+    0% { transform: scale(1); box-shadow: 0 0 5px red; }
+    50% { transform: scale(1.05); box-shadow: 0 0 20px red; }
+    100% { transform: scale(1); box-shadow: 0 0 5px red; }
+}
+
+/* --- 12. Responsive --- */
+@media (max-width: 800px) {
+    #game-container {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto auto;
+        display: block;
+        height: auto;
+    }
+    #sidebar { width: 100%; border-right: none; border-bottom: 2px solid #444; }
+    #chat-container { height: 300px; border-left: none; border-top: 2px solid #3498db; }
+}

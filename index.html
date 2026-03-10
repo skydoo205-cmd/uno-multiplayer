@@ -2,14 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UNO Master V3 - Tournament Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>UNO Master V5 - Tournament Pro</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <audio id="bgm" loop></audio>
+    <audio id="sfx-play" src="sounds/play.mp3"></audio>
+    <audio id="sfx-win" src="sounds/win.mp3"></audio>
+    <audio id="sfx-draw" src="sounds/draw.mp3"></audio>
+
     <div id="lobby-overlay">
         <div class="lobby-box">
-            <h1>UNO Multiplayer</h1>
+            <h1>UNO MULTIPLAYER</h1>
             <div style="margin: 20px 0;">
                 <label style="color: gold; font-weight: bold;">Room Size:</label>
                 <select id="player-limit">
@@ -32,6 +37,7 @@
             <div id="room-display">ROOM: ----</div>
             <div id="stats-list"></div>
             <div id="deck-info" class="deck-count-text">DECK: --</div>
+            <div id="stack-tracker" style="display: none;">🔥 STACK: +0</div>
         </div>
 
         <div id="main-play-area">
@@ -62,29 +68,35 @@
             <div id="chat-messages"></div>
             <div class="chat-input-area">
                 <input type="text" id="chat-input" placeholder="Type message..." maxlength="50">
-                <button onclick="sendChatMessage()">SEND</button>
+                <button onclick="sendChatMessage()" id="chat-send-btn">SEND</button>
             </div>
         </div>
     </div> 
 
     <div id="scoreboard-overlay" style="display: none;">
         <div id="scoreboard-content">
-            <h2>Tournament Results</h2>
+            <h2 style="font-size: 1.8rem; color: #fff;">Tournament Results</h2>
             <div id="score-list"></div>
-            <div id="restart-status" style="color: gold; margin: 10px 0;"></div>
-            <button id="next-round-btn" onclick="requestRestart()" class="lobby-btn join">Next Round</button>
+            <div id="restart-status" style="color: gold; margin: 10px 0; font-weight: bold;"></div>
+            
+            <button id="next-round-btn" onclick="requestRestart()" class="lobby-btn join" style="display:none;">Next Round</button>
+            
             <button onclick="exitToLobby()" class="lobby-btn" style="background:#c0392b; border: 2px solid #fff; margin-top: 10px;">Exit Tournament</button>
         </div>
     </div>
 
     <div id="color-picker">
-        <p>Pick a Color:</p>
+        <p style="font-weight: 900; color: white; margin-bottom: 15px;">PICK A COLOR:</p>
         <div class="color-btns">
             <button onclick="chooseColor('red')" class="btn-red"></button>
             <button onclick="chooseColor('blue')" class="btn-blue"></button>
             <button onclick="chooseColor('green')" class="btn-green"></button>
             <button onclick="chooseColor('yellow')" class="btn-yellow"></button>
         </div>
+    </div>
+
+    <div id="spectator-ui" style="display:none; position:fixed; top:10px; right:10px; background:rgba(0,0,0,0.7); color:gold; padding:10px; border-radius:10px; font-weight:bold; z-index:100;">
+        👁️ SPECTATING MODE
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
