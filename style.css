@@ -103,7 +103,7 @@ body {
 }
 
 #deck-area {
-    display: flex;
+    display: flex !important;
     justify-content: center;
     gap: 20px;
     margin: 20px 0;
@@ -164,7 +164,7 @@ body {
 
 /* --- 5. Hand Fix --- */
 #my-hand {
-    display: flex;
+    display: flex !important;
     flex-direction: row; 
     flex-wrap: nowrap;
     justify-content: flex-start;

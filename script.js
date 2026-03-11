@@ -45,13 +45,15 @@ socket.on('init', data => {
     // TRIGGER: Draw Sound if hand grew
     if (data.hand && data.hand.length > lastHandSize) {
         const drawSfx = document.getElementById('sfx-draw');
-        if (drawSfx) drawSfx.play();
+        if (drawSfx && drawSfx.play) drawSfx.play().catch(()=>{});
     }
     lastHandSize = data.hand ? data.hand.length : 0;
 
     // Refresh everything
     updateUI(data); 
-    renderHand(data.hand, data.topCard, data.waitingForPass, data.stack);
+    if (data.hand) {
+        renderHand(data.hand, data.topCard, data.lastDrawnCard, data.stack);
+    }
 });
 
 // --- UI UPDATER ---
