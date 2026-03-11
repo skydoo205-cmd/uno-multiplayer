@@ -6,12 +6,28 @@ let myTurn = false, currentRoom = null, pendingIdx = null;
 let isSpectator = false;
 let lastHandSize = 0;
 
-// --- AUDIO UNLOCK ---
-function initAudio() {
+// --- AUDIO UNLOCK (V5.1 Optimized) ---
+function startBGM() {
     const bgm = document.getElementById('bgm');
-    bgm.volume = 0.2; 
-    bgm.play().catch(() => console.log("Audio waiting for user click"));
+    if (bgm) {
+        bgm.volume = 0.2;
+        bgm.loop = true; // Ensure it keeps playing
+        bgm.play()
+            .then(() => {
+                console.log("Music started!");
+                // Remove the click listener once it finally starts
+                document.removeEventListener('click', startBGM);
+                document.removeEventListener('touchstart', startBGM);
+            })
+            .catch(() => {
+                console.log("Waiting for user interaction to play music...");
+            });
+    }
 }
+
+// Add listeners for both PC (click) and Mobile (touchstart)
+document.addEventListener('click', startBGM);
+document.addEventListener('touchstart', startBGM);
 
 // --- LOBBY LOGIC ---
 window.createRoom = () => {
@@ -38,19 +54,27 @@ socket.on('roomJoined', (id) => {
 
 // --- CORE GAME UPDATES ---
 socket.on('init', data => {
+    // FIX: Hide the Lobby and the Scoreboard, then show the Game
+    document.getElementById('lobby-overlay').style.display = 'none'; // CRITICAL: This removes "Connecting..."
     document.getElementById('scoreboard-overlay').style.display = 'none';
+    document.getElementById('game-container').style.display = 'grid';
     
     // Check if I am a Spectator (Winner)
     isSpectator = data.finishOrder && data.finishOrder.includes(sessionId);
-    document.getElementById('spectator-ui').style.display = isSpectator ? 'block' : 'none';
+    
+    // Use the isSpectator flag passed from the server for better sync
+    const specUI = document.getElementById('spectator-ui');
+    if (specUI) specUI.style.display = data.isSpectator ? 'block' : 'none';
 
-    // Play sound if hand size increased (Requirement: New Card Pulse)
-    if (data.hand.length > lastHandSize) document.getElementById('sfx-draw').play();
-    lastHandSize = data.hand.length;
+    // Play sound if hand size increased
+    if (data.hand && data.hand.length > lastHandSize) {
+        document.getElementById('sfx-draw').play();
+    }
+    lastHandSize = data.hand ? data.hand.length : 0;
 
     updateUI(data); 
+    // Ensure renderHand is called with all 4 variables for the Smart Glows
     renderHand(data.hand, data.topCard, data.waitingForPass, data.stack);
-    renderTop(data.topCard);
 });
 
 function updateUI(data) {
@@ -83,17 +107,17 @@ function updateUI(data) {
 
     // 3. Sidebar Stats (Requirement: Active Turn Glow & Winner Crown)
     const statsList = document.getElementById('stats-list');
-    if (statsList && data.cardCounts) {
-        statsList.innerHTML = data.cardCounts.map(p => {
-            const isActive = (p.id === data.turnId);
-            const isWinner = data.finishOrder && data.finishOrder.includes(p.id);
+    if (statsList && data.players) {
+        statsList.innerHTML = data.players.map(p => {
+            const isActive = (p.sessionId === data.turnId);
+            const isWinner = data.finishOrder && data.finishOrder.includes(p.sessionId);
             return `
-                <div class="stat-row ${!p.online ? 'offline' : ''} ${isActive ? 'active-turn' : ''}" 
-                     style="padding: 10px; margin-bottom: 5px; background: rgba(255,255,255,0.05); border-radius: 5px; position:relative;">
-                    <span style="color: ${p.online ? '#2ecc71' : '#e74c3c'}">●</span> 
-                    Player ${p.id.substring(0,4)} ${p.id === sessionId ? '<strong>(YOU)</strong>' : ''}
+                <div class="stat-row ${p.isOffline ? 'offline' : ''} ${isActive ? 'active-turn' : ''}" 
+                    style="padding: 10px; margin-bottom: 5px; background: rgba(255,255,255,0.05); border-radius: 5px; position:relative;">
+                    <span style="color: ${!p.isOffline ? '#2ecc71' : '#e74c3c'}">●</span> 
+                    Player ${p.username || p.sessionId.substring(0,4)} ${p.sessionId === sessionId ? '<strong>(YOU)</strong>' : ''}
                     <div style="font-weight:bold;">
-                        ${isWinner ? '👑 FINISHED' : p.count + ' Cards'}
+                        ${isWinner ? '👑 FINISHED' : p.cardCount + ' Cards'}
                     </div>
                 </div>
             `;
@@ -102,11 +126,11 @@ function updateUI(data) {
 
     // 4. Live Scoreboard
     const liveScores = document.getElementById('live-scores-container');
-    if (liveScores && data.cardCounts) {
-        liveScores.innerHTML = data.cardCounts.map(p => `
+    if (liveScores && data.players) {
+        liveScores.innerHTML = data.players.map(p => `
             <div class="live-score-item">
-                <span class="p-name">${p.id.substring(0,4)}</span>: 
-                <span class="p-score">${data.scores[p.id] || 0}</span>
+                <span class="p-name">${p.username || p.sessionId.substring(0,4)}</span>: 
+                <span class="p-score">${(data.results && data.results.scores ? data.results.scores[p.sessionId] : 0)}</span>
             </div>
         `).join('');
     }

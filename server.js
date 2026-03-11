@@ -72,7 +72,7 @@ function updateRoom(roomId) {
                 username: player.username,
                 sessionId: player.sessionId,
                 cardCount: player.hand.length,
-                isOffline: player.isOffline
+                isOffline: !player.socketId // Checks if player is disconnected
             })),
             topCard: topCard,
             currentPlayerIndex: room.currentPlayerIndex,
@@ -252,46 +252,49 @@ io.on('connection', (socket) => {
             }
 
             // --- FIND THIS LINE AROUND LINE 183 ---
-            if (player.hand.length === 0) {
+           if (player.hand.length === 0) {
                 if (!room.finishOrder.includes(mySessionId)) {
                     room.finishOrder.push(mySessionId);
                 }
 
-                // --- NEW: Calculate remaining players ---
                 const activePlayers = room.players.filter(p => !room.finishOrder.includes(p.sessionId));
 
-                // FIX: If only 1 person is left, the game is OVER
+                // SCENARIO A: The game is OVER (Only 1 or 0 players left)
                 if (activePlayers.length <= 1) {
                     if (activePlayers.length === 1) {
                         room.finishOrder.push(activePlayers[0].sessionId);
                     }
 
-                    // 1. Calculate final scores for the standings
                     room.finishOrder.forEach((sid, idx) => {
                         const points = (room.players.length - 1 - idx);
                         room.scores[sid] += points;
                     });
 
-                    // 2. KILL THE REAPER (Fixes the "Stuck at 4s" bug)
                     if (room.reaperTimer) {
                         clearInterval(room.reaperTimer);
                         room.reaperTimer = null;
                         room.reaperEnd = null;
                     }
 
-                    // 3. Close game state and send results
                     room.gameStarted = false;
                     io.to(myRoomId).emit('results', { order: room.finishOrder, scores: room.scores });
                     updateRoom(myRoomId);
-                    return; // Stop the function here
+                    return; // Tournament ends here
                 }
+                
+                // SCENARIO B: The game CONTINUES (More than 1 player left)
+                // We must call nextTurn here so the game doesn't freeze on the winner!
+                nextTurn(myRoomId, skipCount);
+                updateRoom(myRoomId);
+                return; 
             }
 
+            // SCENARIO C: Normal play (Player still has cards)
             nextTurn(myRoomId, skipCount);
             updateRoom(myRoomId);
         }
     });
-
+    
     socket.on('draw', () => {
         const room = rooms[myRoomId];
         if (!room || room.players[room.currentPlayerIndex].sessionId !== mySessionId) return;
