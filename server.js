@@ -11,6 +11,8 @@ app.use(express.static(__dirname));
 const rooms = {};
 const COLOR_ORDER = { 'red': 1, 'blue': 2, 'green': 3, 'yellow': 4, 'black': 5 };
 
+// --- CORE LOGIC: DECK GENERATION ---
+// Purpose: Creates a standard UNO deck with correct card counts.
 function createDeck() {
     const colors = ['red', 'blue', 'green', 'yellow'];
     const types = ['0','1','2','3','4','5','6','7','8','9','Skip','Reverse','+2'];
@@ -25,6 +27,7 @@ function createDeck() {
     return deck.sort(() => Math.random() - 0.5);
 }
 
+// Purpose: Organizes hands by color then type for a cleaner UI.
 function sortHand(hand) {
     return hand.sort((a, b) => {
         if (COLOR_ORDER[a.color] !== COLOR_ORDER[b.color]) {
@@ -34,6 +37,9 @@ function sortHand(hand) {
     });
 }
 
+// --- CORE LOGIC: THE BROADCASTER ---
+// Purpose: Sends the state of the game to every player. 
+// This is the most important function for keeping the UI in sync.
 function updateRoom(roomId) {
     const room = rooms[roomId];
     if (!room) return;
@@ -41,29 +47,16 @@ function updateRoom(roomId) {
     const topCard = room.discardPile[room.discardPile.length - 1];
     const currentPlayer = room.players[room.currentPlayerIndex];
 
-    // --- FIX: The Reaper Calculation ---
+    // BUG FIX: REAPER CALCULATION
+    // Purpose: Prevents the "Stuck at 4s" visual bug by providing a fresh countdown.
     let reaperTime = null;
-
-    // Check if there is an active end-time set for this room
     if (room.reaperEnd) {
-        const now = Date.now();
-        const diff = room.reaperEnd - now;
-        
-        // Only show a number if there's time left
-        if (diff > 0) {
-            reaperTime = Math.ceil(diff / 1000);
-        } else {
-            // If time is up (0 or negative), stop showing it 
-            // This prevents the "Stuck at 4s" visual bug
-            reaperTime = 0; 
-            
-            // OPTIONAL: If time is up, the server should trigger a draw/skip here
-            // if (room.reaperActive) { handleTimeout(roomId); }
-        }
+        const diff = room.reaperEnd - Date.now();
+        reaperTime = diff > 0 ? Math.ceil(diff / 1000) : 0;
     }
 
     room.players.forEach((p) => {
-        // Requirement: Spectator "God Mode" (Winners see everyone's cards)
+        // GOD MODE: Winners (Spectators) see everyone's hands
         const isSpectator = room.finishOrder.includes(p.sessionId);
         
         const payload = {
@@ -72,17 +65,12 @@ function updateRoom(roomId) {
                 username: player.username,
                 sessionId: player.sessionId,
                 cardCount: player.hand.length,
-                isOffline: !player.socketId // Checks if player is disconnected
+                isOffline: !player.socketId // Connects to the red/green dots in sidebar
             })),
             topCard: topCard,
-            currentPlayerIndex: room.currentPlayerIndex,
-            turnId: currentPlayer.sessionId, // Helps client identify whose turn it is
-            direction: room.direction,
-            
-            // --- Logic for V5.1 Smart Glows ---
-            waitingForPass: p.lastDrawnCard, // Sends the card object for the White Glow
-            stack: room.stackCount, // Sends stack count to block "Liar Glows"
-            
+            turnId: currentPlayer.sessionId,
+            stack: room.stackCount, // Used to trigger Gold Glow/Red Tracker
+            waitingForPass: p.lastDrawnCard, // Used to trigger White Glow
             hand: p.hand,
             finishOrder: room.finishOrder,
             results: room.results,
@@ -91,23 +79,21 @@ function updateRoom(roomId) {
             deckCount: room.deck.length
         };
 
-        // Send to player via their specific session/socket
         io.to(p.sessionId).emit('init', payload);
     });
 }
 
+// --- CORE LOGIC: TURN ROTATION ---
+// Purpose: Moves the turn to the next valid player, skipping finished players.
 function nextTurn(roomId, skip = 1) {
     const room = rooms[roomId];
     if (!room) return;
     let playersCount = room.players.length;
-    // Step 1: Execute the jump (1 for normal, 2 for Skip/1v1 Reverse)
-    // We do this 'skip' times to ensure we properly jump over the right number of people
+
     for (let i = 0; i < skip; i++) {
         room.currentPlayerIndex = (room.currentPlayerIndex + room.direction + playersCount) % playersCount;
         
-        // Step 2: The Spectator Bridge
-        // If the person we landed on is already finished, we MUST keep moving 
-        // until we find someone still playing. This doesn't count as a "skip".
+        // THE SPECTATOR BRIDGE: Skips over anyone in the finishOrder.
         let safety = 0;
         while (room.finishOrder.includes(room.players[room.currentPlayerIndex].sessionId) && safety < playersCount) {
             room.currentPlayerIndex = (room.currentPlayerIndex + room.direction + playersCount) % playersCount;
@@ -116,6 +102,7 @@ function nextTurn(roomId, skip = 1) {
     }
 }
 
+// --- CORE LOGIC: ROUND INITIALIZATION ---
 function startRound(roomId) {
     const room = rooms[roomId];
     if (!room) return;
@@ -158,7 +145,7 @@ io.on('connection', (socket) => {
                 players: [], deck: [], discardPile: [], currentPlayerIndex: 0,
                 direction: 1, gameStarted: false, stackCount: 0,
                 scores: {}, finishOrder: [], maxPlayers: playerLimit || 4,
-                unoWindowActive: false, unoTarget: null, restartVotes: new Set(),
+                unoWindowActive: false, unoTarget: null,
                 reaperTimer: null, reaperEnd: null, hostId: sessionId
             };
         }
@@ -168,6 +155,7 @@ io.on('connection', (socket) => {
         if (p) {
             p.socketId = socket.id;
             socket.join(roomId);
+            // BUG FIX: Clear reaper if player reconnects
             if (room.reaperTimer) {
                 clearInterval(room.reaperTimer);
                 room.reaperTimer = null;
@@ -183,17 +171,15 @@ io.on('connection', (socket) => {
             if (room.players.length === room.maxPlayers) {
                 room.gameStarted = true;
                 startRound(roomId);
-            } else {
-                io.to(roomId).emit('status', `Lobby: ${room.players.length}/${room.maxPlayers}`);
             }
-        } else socket.emit('roomFull');
+        }
     });
 
+    // --- CORE LOGIC: PLAY CARD ---
     socket.on('playCard', (data) => {
         const room = rooms[myRoomId];
-        // Requirement: Action Locking (500ms cooldown)
         const now = Date.now();
-        if (now - lastClickTime < 500) return;
+        if (now - lastClickTime < 500) return; // Cooldown anti-spam
         lastClickTime = now;
 
         if (!room || room.gameStarted === false) return;
@@ -203,9 +189,10 @@ io.on('connection', (socket) => {
         const card = player.hand[data.index];
         const top = room.discardPile[room.discardPile.length - 1];
 
+        // RULE: Tactical Draw Enforcement - Must play the drawn card or pass.
         if (player.lastDrawnCard && card !== player.lastDrawnCard) return;
 
-        // Requirement: Escalating Stacking Logic
+        // RULE: Escalating Stacking Logic
         if (room.stackCount > 0) {
             const canStack = (card.type === '+4') || (top.type === '+2' && card.type === '+2');
             if (!canStack) return;
@@ -216,9 +203,9 @@ io.on('connection', (socket) => {
 
         if (matchesTop || isWild) {
             if (isWild && !data.chosenColor) return; 
-
             if (isWild) card.color = data.chosenColor;
 
+            // Update stack counts
             if (card.type === '+2') room.stackCount += 2;
             if (card.type === '+4') room.stackCount += 4;
 
@@ -229,10 +216,9 @@ io.on('connection', (socket) => {
                 skipCount = 2;
             } else if (card.type === 'Reverse') {
                 if (activePlayers.length === 2) {
-                    skipCount = 2;
+                    skipCount = 2; // Reverse acts as skip in 1v1
                 } else {
                     room.direction *= -1;
-                    skipCount = 1;
                 }
             }
 
@@ -240,67 +226,47 @@ io.on('connection', (socket) => {
             room.discardPile.push(card);
             player.lastDrawnCard = null;
 
-            if (player.hand.length === 1) {
-                room.unoWindowActive = true; 
-                room.unoTarget = mySessionId;
-                setTimeout(() => { 
-                    if (rooms[myRoomId]) { 
-                        rooms[myRoomId].unoWindowActive = false; 
-                        updateRoom(myRoomId); 
-                    } 
-                }, 5000);
-            }
+            // BUG FIX: 5-PLAYER FINISH LOGIC
+            // Purpose: Automatically ends the round when only 1 loser is left.
+            if (player.hand.length === 0) {
+                if (!room.finishOrder.includes(mySessionId)) room.finishOrder.push(mySessionId);
+                const stillPlaying = room.players.filter(p => !room.finishOrder.includes(p.sessionId));
 
-            // --- FIND THIS LINE AROUND LINE 183 ---
-           if (player.hand.length === 0) {
-                if (!room.finishOrder.includes(mySessionId)) {
-                    room.finishOrder.push(mySessionId);
-                }
+                if (stillPlaying.length <= 1) {
+                    if (stillPlaying.length === 1) room.finishOrder.push(stillPlaying[0].sessionId);
 
-                const activePlayers = room.players.filter(p => !room.finishOrder.includes(p.sessionId));
-
-                // SCENARIO A: The game is OVER (Only 1 or 0 players left)
-                if (activePlayers.length <= 1) {
-                    if (activePlayers.length === 1) {
-                        room.finishOrder.push(activePlayers[0].sessionId);
-                    }
-
+                    // Add points to persistent scores
                     room.finishOrder.forEach((sid, idx) => {
-                        const points = (room.players.length - 1 - idx);
-                        room.scores[sid] += points;
+                        room.scores[sid] += (room.players.length - 1 - idx);
                     });
 
-                    if (room.reaperTimer) {
-                        clearInterval(room.reaperTimer);
-                        room.reaperTimer = null;
-                        room.reaperEnd = null;
-                    }
-
+                    // KILL REAPER
+                    if (room.reaperTimer) clearInterval(room.reaperTimer);
+                    room.reaperEnd = null;
                     room.gameStarted = false;
+
                     io.to(myRoomId).emit('results', { order: room.finishOrder, scores: room.scores });
                     updateRoom(myRoomId);
-                    return; // Tournament ends here
+                    return; 
                 }
-                
-                // SCENARIO B: The game CONTINUES (More than 1 player left)
-                // We must call nextTurn here so the game doesn't freeze on the winner!
+                // Winner is skipped, turn goes to next active player
                 nextTurn(myRoomId, skipCount);
                 updateRoom(myRoomId);
-                return; 
+                return;
             }
 
-            // SCENARIO C: Normal play (Player still has cards)
             nextTurn(myRoomId, skipCount);
             updateRoom(myRoomId);
         }
     });
-    
+
+    // --- CORE LOGIC: DRAW CARD & INFINITE DECK ---
     socket.on('draw', () => {
         const room = rooms[myRoomId];
         if (!room || room.players[room.currentPlayerIndex].sessionId !== mySessionId) return;
         const player = room.players[room.currentPlayerIndex];
         
-        // Requirement: Infinite Deck (Reshuffle)
+        // Purpose: Reshuffles discard pile if deck is empty.
         const checkDeck = () => {
             if (room.deck.length < 1) {
                 const top = room.discardPile.pop();
@@ -310,6 +276,7 @@ io.on('connection', (socket) => {
         };
 
         if (room.stackCount > 0) {
+            // Player forced to eat the stack
             for(let i=0; i<room.stackCount; i++) {
                 checkDeck();
                 player.hand.push(room.deck.shift());
@@ -322,21 +289,24 @@ io.on('connection', (socket) => {
             checkDeck();
             const drawn = room.deck.shift();
             player.hand.push(drawn);
-            player.lastDrawnCard = drawn;
+            player.lastDrawnCard = drawn; // Stores drawn card for Tactical Play (White Glow)
             sortHand(player.hand);
         }
         updateRoom(myRoomId);
     });
 
-    socket.on('chatMessage', (data) => {
-        if (myRoomId && rooms[myRoomId]) {
-            io.to(myRoomId).emit('newChatMessage', { 
-                user: mySessionId.substring(0, 4), 
-                msg: data.msg 
-            });
+    socket.on('pass', () => {
+        const room = rooms[myRoomId];
+        if (!room) return;
+        const p = room.players[room.currentPlayerIndex];
+        if (p && p.sessionId === mySessionId && p.lastDrawnCard) {
+            p.lastDrawnCard = null; 
+            nextTurn(myRoomId); 
+            updateRoom(myRoomId);
         }
     });
 
+    // --- SYSTEM: DISCONNECT / REAPER ---
     socket.on('disconnect', () => {
         const room = rooms[myRoomId];
         if (room) {
@@ -345,11 +315,10 @@ io.on('connection', (socket) => {
             const onlineCount = room.players.filter(pl => pl.socketId).length;
             
             if (onlineCount < room.maxPlayers && !room.reaperTimer) {
-                room.reaperEnd = Date.now() + 120000;
+                room.reaperEnd = Date.now() + 60000; // 60s timeout
                 room.reaperTimer = setInterval(() => {
-                    const timeLeft = Math.ceil((room.reaperEnd - Date.now()) / 1000);
-                    if (timeLeft <= 0) {
-                        io.to(myRoomId).emit('roomDestroyed', "Room expired: Timeout.");
+                    if (Date.now() >= room.reaperEnd) {
+                        io.to(myRoomId).emit('roomDestroyed', "Room expired: Inactivity.");
                         clearInterval(room.reaperTimer);
                         delete rooms[myRoomId];
                     } else {
@@ -361,58 +330,13 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('pass', () => {
-        const room = rooms[myRoomId];
-        if (!room) return;
-        const p = room.players[room.currentPlayerIndex];
-        if (p && p.sessionId === mySessionId && p.lastDrawnCard) {
-            p.lastDrawnCard = null; nextTurn(myRoomId); updateRoom(myRoomId);
-        }
-    });
-
-    socket.on('unoAction', (type) => {
-        const room = rooms[myRoomId];
-        if (!room || !room.unoWindowActive) return;
-        if (type === 'safe' && mySessionId === room.unoTarget) { room.unoWindowActive = false; }
-        else if (type === 'penalty' && mySessionId !== room.unoTarget) {
-            const victim = room.players.find(p => p.sessionId === room.unoTarget);
-            for(let i=0; i<2; i++) { 
-                if (room.deck.length < 1) {
-                    const top = room.discardPile.pop();
-                    room.deck = [...room.discardPile].sort(() => Math.random() - 0.5);
-                    room.discardPile = [top];
-                }
-                victim.hand.push(room.deck.shift()); 
-            }
-            sortHand(victim.hand);
-            room.unoWindowActive = false;
-        }
-        updateRoom(myRoomId);
-    });
-
     socket.on('requestRestart', () => {
         const room = rooms[myRoomId];
-        if (!room) return;
-        // Requirement: Host Control (Only creator starts round)
-        if (mySessionId !== room.hostId) return;
-        
-        room.gameStarted = true;
-        startRound(myRoomId);
-    });
-
-    socket.on('exitTournament', () => {
-        if (myRoomId && rooms[myRoomId]) { 
-            io.to(myRoomId).emit('roomDestroyed', "A player left the tournament."); 
-            if(rooms[myRoomId].reaperTimer) clearInterval(rooms[myRoomId].reaperTimer);
-            delete rooms[myRoomId]; 
+        if (room && mySessionId === room.hostId) {
+            room.gameStarted = true;
+            startRound(myRoomId);
         }
     });
-
-    // Requirement: Desync Shield (Heartbeat)
-    const syncInterval = setInterval(() => {
-        if (myRoomId && rooms[myRoomId]) updateRoom(myRoomId);
-        else clearInterval(syncInterval);
-    }, 5000);
 });
 
 server.listen(process.env.PORT || 3000);

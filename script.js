@@ -1,4 +1,7 @@
 const socket = io();
+
+// --- PERSISTENCE LOGIC ---
+// Purpose: Remembers the player even if they refresh the page.
 let sessionId = localStorage.getItem('uno_v3_session') || Math.random().toString(36).substring(2);
 localStorage.setItem('uno_v3_session', sessionId);
 
@@ -6,92 +9,94 @@ let myTurn = false, currentRoom = null, pendingIdx = null;
 let isSpectator = false;
 let lastHandSize = 0;
 
-// --- AUDIO UNLOCK (V5.1 Optimized) ---
-function startBGM() {
+// --- BUG FIX: AUDIO UNLOCK (V5.2 Optimized) ---
+// Purpose: Browsers block sound until a user clicks. 
+// This function "unlocks" all audio channels on the very first tap/click.
+function startAudioEngine() {
+    const sounds = ['bgm', 'sfx-play', 'sfx-draw', 'sfx-uno'];
+    sounds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            // Play and immediately pause to "prime" the audio for later
+            el.play().then(() => { el.pause(); el.currentTime = 0; }).catch(() => {});
+        }
+    });
+    // Start the background music loop
     const bgm = document.getElementById('bgm');
-    if (bgm) {
-        bgm.volume = 0.2;
-        bgm.loop = true; // Ensure it keeps playing
-        bgm.play()
-            .then(() => {
-                console.log("Music started!");
-                // Remove the click listener once it finally starts
-                document.removeEventListener('click', startBGM);
-                document.removeEventListener('touchstart', startBGM);
-            })
-            .catch(() => {
-                console.log("Waiting for user interaction to play music...");
-            });
-    }
+    if (bgm) { bgm.volume = 0.2; bgm.play(); }
+
+    // Remove listeners so this only runs once
+    document.removeEventListener('click', startAudioEngine);
+    document.removeEventListener('touchstart', startAudioEngine);
 }
+document.addEventListener('click', startAudioEngine);
+document.addEventListener('touchstart', startAudioEngine);
 
-// Add listeners for both PC (click) and Mobile (touchstart)
-document.addEventListener('click', startBGM);
-document.addEventListener('touchstart', startBGM);
-
-// --- LOBBY LOGIC ---
+// --- LOBBY & JOINING ---
+// Purpose: Handles creating and joining rooms.
 window.createRoom = () => {
-    initAudio();
     const limit = document.getElementById('player-limit').value;
+    // Generate a random 4-digit room code
     const code = Math.floor(1000 + Math.random() * 9000).toString();
     socket.emit('joinRoom', { roomId: code, sessionId, playerLimit: parseInt(limit) });
 };
 
 window.joinRoom = () => {
-    initAudio();
     const code = document.getElementById('room-input').value;
     if(code.length === 4) socket.emit('joinRoom', { roomId: code, sessionId });
 };
 
+// Purpose: Triggered when the server confirms you are in a room.
 socket.on('roomJoined', (id) => {
     currentRoom = id;
     document.getElementById('lobby-overlay').style.display = 'none';
-    document.getElementById('scoreboard-overlay').style.display = 'none';
     document.getElementById('game-container').style.display = 'grid';
-    const roomEl = document.getElementById('room-display');
-    if (roomEl) roomEl.innerText = `ROOM: ${id}`;
+    document.getElementById('room-display').innerText = `ROOM: ${id}`;
 });
 
-// --- CORE GAME UPDATES ---
+// --- BUG FIX: "CONNECTING" FREEZE & CORE UPDATES ---
+// Purpose: This is the Master Sync function. 
+// It clears the lobby screen and triggers the UI refresh.
 socket.on('init', data => {
-    // FIX: Hide the Lobby and the Scoreboard, then show the Game
-    document.getElementById('lobby-overlay').style.display = 'none'; // CRITICAL: This removes "Connecting..."
+    // CRITICAL: Hides the "Connecting..." lobby screen
+    document.getElementById('lobby-overlay').style.display = 'none';
     document.getElementById('scoreboard-overlay').style.display = 'none';
     document.getElementById('game-container').style.display = 'grid';
     
-    // Check if I am a Spectator (Winner)
-    isSpectator = data.finishOrder && data.finishOrder.includes(sessionId);
-    
-    // Use the isSpectator flag passed from the server for better sync
-    const specUI = document.getElementById('spectator-ui');
-    if (specUI) specUI.style.display = data.isSpectator ? 'block' : 'none';
+    // Sync spectator state with the server flag
+    isSpectator = data.isSpectator;
+    document.getElementById('spectator-ui').style.display = isSpectator ? 'block' : 'none';
 
-    // Play sound if hand size increased
+    // TRIGGER: Draw Sound (Only if your hand actually got bigger)
     if (data.hand && data.hand.length > lastHandSize) {
-        document.getElementById('sfx-draw').play();
+        const drawSfx = document.getElementById('sfx-draw');
+        if (drawSfx) drawSfx.play();
     }
     lastHandSize = data.hand ? data.hand.length : 0;
 
+    // Refresh UI Components
     updateUI(data); 
-    // Ensure renderHand is called with all 4 variables for the Smart Glows
     renderHand(data.hand, data.topCard, data.waitingForPass, data.stack);
 });
 
+// --- UI UPDATER ---
+// Purpose: Updates text, timers, and button visibility.
 function updateUI(data) {
+    // Determine if it is my turn (and I'm not just spectating)
     myTurn = (sessionId === data.turnId) && !isSpectator;
-    const isTarget = (data.windowActive && data.unoTarget === sessionId);
-    const canPenalize = (data.windowActive && data.unoTarget !== sessionId);
 
-    // 1. Status & Reaper
+    // 1. STATUS BAR & REAPER TIMER
     const status = document.getElementById('status');
     if (isSpectator) {
-        status.innerText = "SPECTATING...";
+        status.innerText = "SPECTATING MODE";
         status.style.color = "gold";
     } else {
-        status.innerText = myTurn ? (data.waitingForPass ? "PLAY DRAWN CARD OR PASS" : "YOUR TURN!") : "Waiting...";
+        // BUG FIX: Inform player if they MUST play their drawn card or pass
+        status.innerText = myTurn ? (data.waitingForPass ? "PLAY DRAWN CARD OR PASS" : "YOUR TURN!") : "Waiting for Turn...";
         status.style.color = myTurn ? "#2ecc71" : "white";
     }
 
+    // BUG FIX: Reaper Timer logic (Prevents "Stuck at 4s" visual)
     const reaperEl = document.getElementById('reaper-status');
     if (data.reaperTimeLeft && data.reaperTimeLeft > 0) {
         reaperEl.style.display = 'block';
@@ -100,55 +105,52 @@ function updateUI(data) {
         reaperEl.style.display = 'none';
     }
 
-    // 2. Controls (Hidden for Spectators)
-    document.getElementById('uno-btn').style.display = (isTarget && !isSpectator) ? 'block' : 'none';
-    document.getElementById('penalty-btn').style.display = (canPenalize && !isSpectator) ? 'block' : 'none';
+    // 2. BUTTON CONTROLS
+    // Only show buttons if the specific game event (UNO/Penalty/Pass) is active
+    document.getElementById('uno-btn').style.display = (data.windowActive && data.unoTarget === sessionId && !isSpectator) ? 'block' : 'none';
+    document.getElementById('penalty-btn').style.display = (data.windowActive && data.unoTarget !== sessionId && !isSpectator) ? 'block' : 'none';
     document.getElementById('pass-btn').style.display = (myTurn && data.waitingForPass) ? 'block' : 'none';
 
-    // 3. Sidebar Stats (Requirement: Active Turn Glow & Winner Crown)
+    // 3. SIDEBAR STATS (5-Player Compatible)
     const statsList = document.getElementById('stats-list');
     if (statsList && data.players) {
         statsList.innerHTML = data.players.map(p => {
             const isActive = (p.sessionId === data.turnId);
-            const isWinner = data.finishOrder && data.finishOrder.includes(p.sessionId);
+            const finished = data.finishOrder && data.finishOrder.includes(p.sessionId);
             return `
-                <div class="stat-row ${p.isOffline ? 'offline' : ''} ${isActive ? 'active-turn' : ''}" 
-                    style="padding: 10px; margin-bottom: 5px; background: rgba(255,255,255,0.05); border-radius: 5px; position:relative;">
+                <div class="stat-row ${p.isOffline ? 'offline' : ''} ${isActive ? 'active-turn' : ''}">
                     <span style="color: ${!p.isOffline ? '#2ecc71' : '#e74c3c'}">●</span> 
-                    Player ${p.username || p.sessionId.substring(0,4)} ${p.sessionId === sessionId ? '<strong>(YOU)</strong>' : ''}
-                    <div style="font-weight:bold;">
-                        ${isWinner ? '👑 FINISHED' : p.cardCount + ' Cards'}
-                    </div>
-                </div>
-            `;
+                    ${p.sessionId.substring(0,4)} ${p.sessionId === sessionId ? '(YOU)' : ''}
+                    <div style="font-weight:bold;">${finished ? '👑 FINISHED' : p.cardCount + ' Cards'}</div>
+                </div>`;
         }).join('');
     }
 
-    // 4. Live Scoreboard
+    // 4. LIVE TOURNAMENT STANDINGS
     const liveScores = document.getElementById('live-scores-container');
     if (liveScores && data.players) {
         liveScores.innerHTML = data.players.map(p => `
             <div class="live-score-item">
-                <span class="p-name">${p.username || p.sessionId.substring(0,4)}</span>: 
+                <span>${p.sessionId.substring(0,4)}</span>: 
                 <span class="p-score">${(data.results && data.results.scores ? data.results.scores[p.sessionId] : 0)}</span>
-            </div>
-        `).join('');
+            </div>`).join('');
     }
 
-    // 5. Stack Tracker (Requirement: Live Stack Counter)
+    // 5. STACK TRACKER
     const stackTracker = document.getElementById('stack-tracker');
     if (data.stack > 0) {
         stackTracker.style.display = 'block';
         stackTracker.innerText = `🔥 STACK: +${data.stack}`;
+        stackTracker.classList.add('stack-active'); // CSS Red Pulse
     } else {
         stackTracker.style.display = 'none';
     }
 
-    const deckInfo = document.getElementById('deck-info');
-    if (deckInfo) deckInfo.innerText = `Deck: ${data.deckCount}`;
+    document.getElementById('deck-info').innerText = `Deck: ${data.deckCount || 0}`;
 }
 
-// --- RENDERING ---
+// --- CARD RENDERING ---
+// Purpose: Handles the visuals for your hand, including Glows.
 function renderHand(hand, topCard, lastDrawn, currentStack) {
     const cont = document.getElementById('my-hand');
     cont.innerHTML = '';
@@ -157,36 +159,33 @@ function renderHand(hand, topCard, lastDrawn, currentStack) {
         const div = document.createElement('div');
         div.className = `card ${c.color}`;
         
-        // --- LOGIC 1: THE TACTICAL DRAW (WHITE GLOW) ---
+        // BUG FIX: THE WHITE GLOW (Tactical Draw)
+        // Checks if this card matches the one just drawn from the server
         const isRecentlyDrawn = lastDrawn && c.type === lastDrawn.type && c.color === lastDrawn.color;
 
-        // --- LOGIC 2: SMART STACKING (GOLD GLOW) ---
+        // BUG FIX: SMART STACKING (Gold Glow)
         let isPlayable = false;
-
         if (currentStack > 0) {
-            // If under attack, ONLY glow cards that can actually stack
-            // Rule: +4 on anything, or +2 on a +2
-            const isTopPlus4 = (topCard.type === '+4');
+            // Under attack: Only glow cards that can stack (+4 or matching +2)
             if (c.type === '+4') isPlayable = true;
-            if (!isTopPlus4 && c.type === '+2') isPlayable = true;
+            if (topCard.type === '+2' && c.type === '+2') isPlayable = true;
         } else {
             // Normal play rules
             isPlayable = (c.color === topCard.color || c.type === topCard.type || c.color === 'black');
         }
 
-        // Apply Visuals
+        // Apply visual classes based on state
         if (isRecentlyDrawn) {
-            div.classList.add('recently-drawn');
+            div.classList.add('recently-drawn'); // White Glow (defined in CSS)
         } else if (myTurn && isPlayable && !lastDrawn) {
-            // Only show gold glow if we aren't waiting on a "Play or Pass" decision
-            div.classList.add('playable-glow');
+            div.classList.add('playable-glow'); // Gold Glow
         }
 
         div.innerHTML = `<span>${c.type}</span>`;
         
         div.onclick = () => {
             if(!myTurn || isSpectator) return;
-            // Block clicking other cards if we just drew a tactical card
+            // IMPORTANT: If you just drew a card, you can ONLY click that specific card
             if (lastDrawn && !isRecentlyDrawn) return; 
 
             if(c.color === 'black') {
@@ -201,38 +200,7 @@ function renderHand(hand, topCard, lastDrawn, currentStack) {
     });
 }
 
-function renderTop(card) {
-    const el = document.getElementById('top-card');
-    el.className = `card ${card.color}`;
-    el.innerHTML = `<span>${card.type}</span>`;
-}
-
-// --- CHAT LOGIC ---
-window.sendChatMessage = () => {
-    const input = document.getElementById('chat-input');
-    const msg = input.value.trim();
-    if (msg && currentRoom) {
-        socket.emit('chatMessage', { msg: msg });
-        input.value = '';
-    }
-};
-
-document.getElementById('chat-input').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendChatMessage();
-});
-
-socket.on('newChatMessage', data => {
-    const box = document.getElementById('chat-messages');
-    if (box) {
-        const msgDiv = document.createElement('div');
-        msgDiv.className = 'chat-line';
-        msgDiv.innerHTML = `<span style="color: gold; font-weight: bold;">${data.user}:</span> <span style="color: white;">${data.msg}</span>`;
-        box.appendChild(msgDiv);
-        box.scrollTop = box.scrollHeight;
-    }
-});
-
-// --- EMITTERS ---
+// --- EVENT EMITTERS ---
 window.chooseColor = (color) => {
     document.getElementById('color-picker').style.display = 'none';
     socket.emit('playCard', { index: pendingIdx, chosenColor: color });
@@ -245,24 +213,23 @@ window.emitPass = () => socket.emit('pass');
 window.emitDraw = () => { if(myTurn) socket.emit('draw'); };
 
 // --- TOURNAMENT RESULTS ---
+// Purpose: Triggers when the server determines the round is over.
 socket.on('results', data => {
-    document.getElementById('sfx-win').play();
-    document.getElementById('score-list').innerHTML = data.order.map((id, i) => `
-        <div class="score-row" style="display:flex; justify-content:space-between; padding:10px; background:#333; margin:5px; border-left:3px solid gold;">
+    // Clear any stuck reaper UI
+    document.getElementById('reaper-status').style.display = 'none';
+    
+    const scoreList = document.getElementById('score-list');
+    scoreList.innerHTML = data.order.map((id, i) => `
+        <div class="score-row">
             <span>${i+1}. ${id.substring(0,4)} ${id === sessionId ? '<strong>(YOU)</strong>' : ''}</span>
             <span>Total: ${data.scores[id]}</span>
-        </div>
-    `).join('');
+        </div>`).join('');
     
     document.getElementById('scoreboard-overlay').style.display = 'flex';
 });
 
-window.requestRestart = () => {
-    const btn = document.getElementById('next-round-btn');
-    btn.disabled = true; btn.innerText = "Waiting..."; 
-    socket.emit('requestRestart');
-};
-
+// --- SYSTEM RESET ---
+window.requestRestart = () => { socket.emit('requestRestart'); };
 window.exitToLobby = () => { if (confirm("Exit tournament?")) window.location.reload(); };
 
 socket.on('roomDestroyed', (reason) => { 
