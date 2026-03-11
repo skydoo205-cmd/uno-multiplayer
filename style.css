@@ -68,7 +68,27 @@ body {
     overflow-y: auto;
 }
 
-#status { margin-top: 10px; font-weight: bold; font-size: 1.1rem; }
+#status {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: #2ecc71; /* Starting Green */
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    margin: 10px 0;
+    min-height: 40px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+
+/* Optional: Add a pulse to the Lobby text */
+.lobby-pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+}
 
 /* NEW: Reaper Warning Style (Problem 6) */
 #reaper-status {
@@ -175,6 +195,7 @@ body {
     padding: 10px;
     text-align: left;
     background: #1a1a1a;
+    word-wrap: break-word;
 }
 
 /* Red Area: Bottom Scoreboard */
@@ -203,17 +224,56 @@ body {
 }
 
 /* --- 7. Overlays --- */
+/* THE OUTER DARKENED BACKGROUND */
 #lobby-overlay, #scoreboard-overlay {
-    position: fixed; 
-    inset: 0; 
-    justify-content: center; 
-    align-items: center;
-    background: rgba(0,0,0,0.95); 
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.9);
     display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
 }
 
-#lobby-overlay { z-index: 9999; }
-#scoreboard-overlay { z-index: 8000; }
+/* THE BOX ITSELF (Creating the .menu-box style from your pic) */
+.menu-box {
+    background: #1e1e1e;
+    border: 2px solid #ffcc00; /* Gold Border from Screen 2 */
+    border-radius: 20px;
+    padding: 40px;
+    width: 350px;
+    text-align: center;
+    box-shadow: 0 0 30px rgba(255, 204, 0, 0.2); /* Subtle Gold Glow */
+}
+
+.menu-box h1, .menu-box h2 { 
+    color: #ffcc00; 
+    margin-bottom: 20px; 
+    font-size: 1.8rem;
+    text-transform: uppercase;
+}
+
+/* BUTTONS FROM SCREEN 2 & 3 */
+.btn-create {
+    background: #c0392b; /* The Red from your Screen 2 */
+    color: white; width: 100%; padding: 15px; border: none;
+    border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px;
+}
+
+.btn-join {
+    background: #27ae60; /* The Green from your Screen 2 */
+    color: white; width: 100%; padding: 15px; border: none;
+    border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px;
+}
+
+.divider { color: #555; margin: 15px 0; font-weight: bold; }
+
+/* INPUTS */
+input[type="text"], select {
+    width: 100%; padding: 12px; margin: 10px 0;
+    background: #2a2a2a; border: 1px solid #444;
+    border-radius: 8px; color: white; text-align: center;
+}
 
 /* NEW: Spectator UI (Requirement 5) */
 #spectator-ui {
@@ -240,3 +300,69 @@ body {
     #sidebar { width: 100%; border-right: none; }
     #spectator-ui { right: 10px; top: auto; bottom: 10px; }
 }
+
+/* --- Color Picker Button Visuals --- */
+.btn-red { 
+    background-color: #e74c3c !important; 
+    border: 3px solid rgb(0, 0, 0);
+}
+
+.btn-blue { 
+    background-color: #3498db !important; 
+    border: 3px solid rgb(0, 0, 0);
+}
+
+.btn-green { 
+    background-color: #2ecc71 !important; 
+    border: 3px solid rgb(0, 0, 0);
+}
+
+.btn-yellow { 
+    background-color: #f1c40f !important; 
+    border: 3px solid rgb(0, 0, 0); /* Black border for yellow for better visibility */
+}
+
+/* Ensure buttons are clickable and sized correctly */
+.color-btns button {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.color-btns button:hover {
+    transform: scale(1.1);
+    filter: brightness(1.2);
+}
+
+/* --- 9. Control Buttons (Oval Style) --- */
+#controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 20px 0;
+    position: relative;
+    z-index: 2000; /* Keeps them above the cards for clicking */
+}
+
+.ctrl-btn {
+    padding: 12px 35px;
+    border-radius: 50px; /* Makes them ovals */
+    font-weight: 800;
+    font-size: 0.9rem;
+    cursor: pointer;
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    text-transform: uppercase;
+    transition: transform 0.1s, filter 0.2s;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.ctrl-btn:active { transform: scale(0.95); }
+.ctrl-btn:hover { filter: brightness(1.2); }
+
+/* Specific Colors */
+#pass-btn { background: #8e44ad; }    /* Purple */
+#uno-btn { background: #e74c3c; }     /* Red */
+#penalty-btn { background: #f39c12; } /* Orange/Gold */

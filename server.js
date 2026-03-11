@@ -152,6 +152,7 @@ io.on('connection', (socket) => {
         if (p) {
             p.socketId = socket.id;
             socket.join(roomId);
+            socket.username = sessionId;
             if (room.reaperTimer) {
                 clearInterval(room.reaperTimer);
                 room.reaperTimer = null;
@@ -161,17 +162,31 @@ io.on('connection', (socket) => {
             updateRoom(roomId);
         } else if (room.players.length < room.maxPlayers && !room.gameStarted) {
             socket.join(roomId);
+            socket.username = sessionId;
             room.players.push({ sessionId, socketId: socket.id, hand: [], lastDrawnCard: null });
             room.scores[sessionId] = room.scores[sessionId] || 0;
             socket.emit('roomJoined', roomId);
             if (room.players.length === room.maxPlayers) {
                 room.gameStarted = true;
+                // ADD THIS LINE: It clears the "Lobby: 4/4" and says "Starting"
+                io.to(roomId).emit('status', "Match Starting...");
                 startRound(roomId);
             } else {
                 // Fixed syntax error here
                 io.to(roomId).emit('status', `Lobby: ${room.players.length}/${room.maxPlayers}`);
             }
         } else socket.emit('roomFull');
+
+    socket.on('chatMessage', (data) => {
+        const room = rooms[myRoomId];
+        if (room) {
+            io.to(myRoomId).emit('newChatMessage', {
+                user: socket.username || "Player", 
+                 msg: data.msg
+            });
+        }
+    });
+
     });
 
     // --- BLOCK: PLAY CARD LOGIC ---
@@ -192,6 +207,9 @@ io.on('connection', (socket) => {
         if (room.stackCount > 0) {
             const canStack = (card.type === '+4') || (top.type === '+2' && card.type === '+2');
             if (!canStack) return;
+        } else if (room.stackCount > 0 && top.isUsed) {
+            // Safety: If for some reason the stack count is > 0 but the card is used, reset it
+            room.stackCount = 0;
         }
 
         const isWild = (card.color === 'black');
@@ -221,6 +239,7 @@ io.on('connection', (socket) => {
             }
 
             player.hand.splice(data.index, 1);
+            card.isUsed = false;
             room.discardPile.push(card);
             player.lastDrawnCard = null;
 
@@ -232,9 +251,18 @@ io.on('connection', (socket) => {
                 
                 // If only 1 person left, the game is over.
                 if (stillPlaying.length <= 1) {
-                    if (stillPlaying.length === 1) room.finishOrder.push(stillPlaying[0].sessionId);
+                    // FIX: Only push the last player if they aren't already in the list
+                    if (stillPlaying.length === 1) {
+                        const loserId = stillPlaying[0].sessionId;
+                        if (!room.finishOrder.includes(loserId)) {
+                            room.finishOrder.push(loserId);
+                        }
+                    }
                     
+                    // The rest of your loop is mathematically correct:
                     room.finishOrder.forEach((sid, idx) => {
+                        // 1st place (idx 0) gets: (5 - 1 - 0) = 4 points
+                        // 5th place (idx 4) gets: (5 - 1 - 4) = 0 points
                         room.scores[sid] += (room.players.length - 1 - idx);
                     });
 
@@ -271,6 +299,9 @@ io.on('connection', (socket) => {
                 player.hand.push(room.deck.shift());
             }
             room.stackCount = 0;
+            const topCard = room.discardPile[room.discardPile.length - 1];
+            if (topCard) topCard.isUsed = true;
+
             sortHand(player.hand);
             nextTurn(myRoomId);
         } else {

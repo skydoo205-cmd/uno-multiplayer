@@ -68,7 +68,8 @@ function updateUI(data) {
         status.innerText = "SPECTATING...";
         status.style.color = "gold";
     } else {
-        status.innerText = myTurn ? (data.waitingForPass ? "PLAY DRAWN CARD OR PASS" : "YOUR TURN!") : "Waiting...";
+        const waitingText = status.innerText.includes("Lobby") ? status.innerText : "Waiting...";
+        status.innerText = myTurn ? (data.waitingForPass ? "PLAY DRAWN CARD OR PASS" : "YOUR TURN!") : waitingText;
         status.style.color = myTurn ? "#2ecc71" : "white";
     }
 
@@ -81,9 +82,29 @@ function updateUI(data) {
     }
 
     // 3. Controls (Buttons)
-    document.getElementById('uno-btn').style.display = (isTarget && !isSpectator) ? 'block' : 'none';
-    document.getElementById('penalty-btn').style.display = (canPenalize && !isSpectator) ? 'block' : 'none';
-    document.getElementById('pass-btn').style.display = (myTurn && data.waitingForPass) ? 'block' : 'none';
+   // 1. Reset all buttons to hidden first (Prevents "Ghost" buttons)
+    document.getElementById('pass-btn').style.display = 'none';
+    document.getElementById('uno-btn').style.display = 'none';
+    document.getElementById('penalty-btn').style.display = 'none';
+
+    // 2. Pass Button: Only if it's your turn AND the server says you can pass
+    if (myTurn && data.waitingForPass) {
+        const passBtn = document.getElementById('pass-btn');
+        passBtn.style.display = 'block';
+        passBtn.style.zIndex = "5000"; // Force it above the hand container
+    }
+
+    // 3. UNO Button: Only if you have exactly 2 cards (about to play 1) OR 1 card (just played)
+    // AND you haven't said it yet.
+    const myPlayer = data.players.find(p => p.sessionId === mySessionId);
+    if (myTurn && myPlayer && myPlayer.hand.length <= 2 && !myPlayer.saidUno) {
+        document.getElementById('uno-btn').style.display = 'block';
+    }
+
+    // 4. Penalty Button: Show for everyone if someone forgot to say UNO
+    if (data.unoWindowActive) {
+        document.getElementById('penalty-btn').style.display = 'block';
+    }
 
     // 4. Sidebar Stats (Requirement: Active Turn Glow & Winner Crown)
     const statsList = document.getElementById('stats-list');
@@ -162,12 +183,18 @@ function renderHand(hand, topCard, lastDrawn, currentStack) {
         
         div.onclick = () => {
             if(!myTurn || isSpectator) return;
-            // Rule: If you just drew, you must play that card or Pass
-            if (lastDrawn && !isNew) return;
+            
+            // FIX: Consistent variable naming for Tactical Draw check
+            const isRecentlyDrawn = lastDrawn && c.type === lastDrawn.type && c.color === lastDrawn.color;
+            if (lastDrawn && !isRecentlyDrawn) return; 
 
-            if(c.color === 'black') {
-                pendingIdx = i;
-                document.getElementById('color-picker').style.display = 'flex';
+            // FIX: Standardize check for Black/Wild cards to trigger picker
+            if (c.color === 'black' || c.type === 'Wild' || c.type === '+4') {
+                pendingIdx = i; 
+                const picker = document.getElementById('color-picker');
+                if (picker) {
+                    picker.style.display = 'flex';
+                }
             } else {
                 socket.emit('playCard', { index: i });
                 const playSfx = document.getElementById('sfx-play');
@@ -212,8 +239,18 @@ socket.on('newChatMessage', data => {
 
 // --- EMITTERS ---
 window.chooseColor = (color) => {
-    document.getElementById('color-picker').style.display = 'none';
-    socket.emit('playCard', { index: pendingIdx, chosenColor: color });
+    // 1. Hide the picker immediately
+    const picker = document.getElementById('color-picker');
+    if (picker) picker.style.display = 'none';
+    
+    // 2. Emit payload using the confirmed pendingIdx
+    socket.emit('playCard', { 
+        index: pendingIdx, 
+        chosenColor: color 
+    });
+    
+    const playSfx = document.getElementById('sfx-play');
+    if (playSfx) playSfx.play();
 };
 
 window.emitUno = () => socket.emit('unoAction', 'safe');
@@ -248,4 +285,21 @@ socket.on('restartProgress', data => {
 socket.on('roomDestroyed', (reason) => { 
     alert(reason || "Tournament dissolved."); 
     window.location.reload(); 
+});
+
+/* --- LOBBY STATUS LISTENER --- */
+socket.on('status', (msg) => {
+    const statusDiv = document.getElementById('status');
+    if (statusDiv) {
+        statusDiv.innerText = msg;
+        
+        // If it's the lobby, add the pulse animation you made!
+        if (msg.includes("Lobby")) {
+            statusDiv.classList.add('lobby-pulse');
+            statusDiv.style.color = "#2ecc71"; // Keep it Green
+        } else {
+            // Remove pulse when the game actually starts
+            statusDiv.classList.remove('lobby-pulse');
+        }
+    }
 });
