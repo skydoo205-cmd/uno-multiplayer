@@ -12,24 +12,45 @@ let lastHandSize = 0;
 // --- LOBBY LOGIC ---
 // Purpose: Handles creating or joining a tournament room.
 window.createRoom = () => {
+    const name = document.getElementById('display-name')?.value || "Player";
     const limit = document.getElementById('player-limit').value;
     const code = Math.floor(1000 + Math.random() * 9000).toString();
-    socket.emit('joinRoom', { roomId: code, sessionId, playerLimit: parseInt(limit) });
+    socket.emit('joinRoom', { 
+        roomId: code, 
+        sessionId, 
+        playerName: name,
+        playerLimit: parseInt(limit) 
+    });
 };
 
 window.joinRoom = () => {
+    const name = document.getElementById('display-name')?.value || "Player";
     const code = document.getElementById('room-input').value;
-    if(code.length === 4) socket.emit('joinRoom', { roomId: code, sessionId });
+    if(code.length === 4) {
+        socket.emit('joinRoom', { 
+            roomId: code, 
+            sessionId,
+            playerName: name 
+            // NOTE: We don't send playerLimit here so we don't overwrite the host's setting
+        });
+    } else {
+        alert("Please enter a 4-digit code");
+    }
 };
 
 socket.on('roomJoined', (id) => {
     currentRoom = id;
     document.getElementById('lobby-overlay').style.display = 'none';
-    document.getElementById('scoreboard-overlay').style.display = 'none';
     document.getElementById('game-container').style.display = 'grid';
 
     const roomEl = document.getElementById('room-display');
     if (roomEl) roomEl.innerText = `ROOM: ${id}`;
+    
+    // Safety: Ensure status shows "Waiting for players" immediately
+    const status = document.getElementById('status');
+    if (status && !status.innerText.includes("LOBBY")) {
+        status.innerText = "CONNECTING TO LOBBY...";
+    }
 });
 
 // --- CORE GAME UPDATES ---
@@ -37,78 +58,79 @@ socket.on('roomJoined', (id) => {
 socket.on('init', data => {
     document.getElementById('scoreboard-overlay').style.display = 'none';
     
-    // Requirement 5: Check if I am a spectator (Winner watching the remaining game)
+    // 1. Spectator Logic
     isSpectator = data.isSpectator;
     const specUI = document.getElementById('spectator-ui');
     if (specUI) specUI.style.display = isSpectator ? 'block' : 'none';
 
-    // TRIGGER: Draw Sound if hand grew
+    // 2. Draw Sound Logic
     if (data.hand && data.hand.length > lastHandSize) {
         const drawSfx = document.getElementById('sfx-draw');
         if (drawSfx && drawSfx.play) drawSfx.play().catch(()=>{});
     }
     lastHandSize = data.hand ? data.hand.length : 0;
 
-    // Refresh everything
+    // 3. REFRESH EVERYTHING
     updateUI(data); 
-    if (data.hand) {
+
+    // 4. RENDER HAND (Safe Check Added)
+    if (data.hand && data.topCard) {
         renderHand(data.hand, data.topCard, data.lastDrawnCard, data.stack);
+    }
+
+    // 5. MUSIC AUTO-START (Safe Check Added)
+    const bgMusic = document.getElementById('bg-music');
+    if (bgMusic && bgMusic.paused) {
+        bgMusic.play().catch(() => { console.log("Music waiting for interaction"); });
     }
 });
 
-// --- UI UPDATER ---
-// Purpose: Manages all text elements, buttons, and the sidebar list.
 function updateUI(data) {
+    if (!data) return; // Top-level safety
+
     // 1. Core Turn Logic
     myTurn = (sessionId === data.turnId) && !isSpectator;
-    const isTarget = (data.windowActive && data.unoTarget === sessionId);
-    const canPenalize = (data.windowActive && data.unoTarget !== sessionId);
 
-    // 2. Status & Reaper Timer (Problem 6 Fix)
+    // 2. Status & Reaper Timer
     const status = document.getElementById('status');
-    if (isSpectator) {
-        status.innerText = "SPECTATING...";
-        status.style.color = "gold";
-    } else {
-        const waitingText = status.innerText.includes("Lobby") ? status.innerText : "Waiting...";
-        status.innerText = myTurn ? (data.waitingForPass ? "PLAY DRAWN CARD OR PASS" : "YOUR TURN!") : waitingText;
-        status.style.color = myTurn ? "#2ecc71" : "white";
+    if (status) {
+        if (isSpectator) {
+            status.innerText = "SPECTATING...";
+            status.style.color = "gold";
+        } else {
+            // Protect Lobby count text
+            const waitingText = status.innerText.includes("LOBBY") ? status.innerText : "WAITING...";
+            status.innerText = myTurn ? (data.waitingForPass ? "PLAY DRAWN CARD OR PASS" : "YOUR TURN!") : waitingText;
+            status.style.color = myTurn ? "#2ecc71" : "white";
+        }
     }
 
     const reaperEl = document.getElementById('reaper-status');
-    if (data.reaperTimeLeft && data.reaperTimeLeft > 0) {
-        reaperEl.style.display = 'block';
-        reaperEl.innerText = `⚠️ Connection Timeout: ${data.reaperTimeLeft}s`;
-    } else {
-        reaperEl.style.display = 'none';
+    if (reaperEl) {
+        if (data.reaperTimeLeft && data.reaperTimeLeft > 0) {
+            reaperEl.style.display = 'block';
+            reaperEl.innerText = `⚠️ Connection Timeout: ${data.reaperTimeLeft}s`;
+        } else {
+            reaperEl.style.display = 'none';
+        }
     }
 
     // 3. Controls (Buttons)
-   // 1. Reset all buttons to hidden first (Prevents "Ghost" buttons)
-    document.getElementById('pass-btn').style.display = 'none';
-    document.getElementById('uno-btn').style.display = 'none';
-    document.getElementById('penalty-btn').style.display = 'none';
+    const passBtn = document.getElementById('pass-btn');
+    const unoBtn = document.getElementById('uno-btn');
+    const penaltyBtn = document.getElementById('penalty-btn');
 
-    // 2. Pass Button: Only if it's your turn AND the server says you can pass
-    if (myTurn && data.waitingForPass) {
-        const passBtn = document.getElementById('pass-btn');
-        passBtn.style.display = 'block';
-        passBtn.style.zIndex = "5000"; // Force it above the hand container
+    if (passBtn) passBtn.style.display = (myTurn && data.waitingForPass) ? 'block' : 'none';
+    
+    const myPlayer = data.players ? data.players.find(p => p.sessionId === sessionId) : null;
+    if (unoBtn) {
+        const showUno = myTurn && myPlayer && myPlayer.cardCount <= 2 && !myPlayer.saidUno;
+        unoBtn.style.display = showUno ? 'block' : 'none';
     }
 
-    // 3. UNO Button: Only if you have exactly 2 cards (about to play 1) OR 1 card (just played)
-    // AND you haven't said it yet.
-    const myPlayer = data.players.find(p => p.sessionId === mySessionId);
-    if (myTurn && myPlayer && myPlayer.hand.length <= 2 && !myPlayer.saidUno) {
-        document.getElementById('uno-btn').style.display = 'block';
-    }
+    if (penaltyBtn) penaltyBtn.style.display = data.unoWindowActive ? 'block' : 'none';
 
-    // 4. Penalty Button: Show for everyone if someone forgot to say UNO
-    if (data.unoWindowActive) {
-        document.getElementById('penalty-btn').style.display = 'block';
-    }
-
-    // 4. Sidebar Stats (Requirement: Active Turn Glow & Winner Crown)
+    // 4. Sidebar Stats
     const statsList = document.getElementById('stats-list');
     if (statsList && data.players) {
         statsList.innerHTML = data.players.map(p => {
@@ -118,95 +140,70 @@ function updateUI(data) {
                 <div class="stat-row ${p.isOffline ? 'offline' : ''} ${isActive ? 'active-turn' : ''}" 
                      style="padding: 10px; margin-bottom: 5px; background: rgba(255,255,255,0.05); border-radius: 5px; position:relative;">
                     <span style="color: ${!p.isOffline ? '#2ecc71' : '#e74c3c'}">●</span> 
-                    Player ${p.sessionId.substring(0,4)} ${p.sessionId === sessionId ? '<strong>(YOU)</strong>' : ''}
+                    ${p.name || "Player"} ${p.sessionId === sessionId ? '<strong>(YOU)</strong>' : ''}
                     <div style="font-weight:bold;">
-                        ${isWinner ? '👑 FINISHED' : p.cardCount + ' Cards'}
+                        ${isWinner ? '👑 FINISHED' : (p.cardCount || 0) + ' Cards'}
                     </div>
-                </div>
-            `;
+                </div>`;
         }).join('');
     }
 
-    // 5. Live Scoreboard
-    const liveScores = document.getElementById('live-scores-container');
-    if (liveScores && data.players) {
-        liveScores.innerHTML = data.players.map(p => `
-            <div class="live-score-item">
-                <span class="p-name">${p.sessionId.substring(0,4)}</span>: 
-                <span class="p-score">${(data.results && data.results.scores ? data.results.scores[p.sessionId] : 0)}</span>
-            </div>
-        `).join('');
-    }
-
-    // 6. Stack Tracker (Requirement: Live Stack Counter)
-    const stackTracker = document.getElementById('stack-tracker');
-    if (data.stack > 0) {
-        stackTracker.style.display = 'block';
-        stackTracker.innerText = `🔥 STACK: +${data.stack}`;
-    } else {
-        stackTracker.style.display = 'none';
-    }
-
+    // 5. Deck & Stack
     const deckInfo = document.getElementById('deck-info');
-    if (deckInfo) deckInfo.innerText = `Deck: ${data.deckCount}`;
+    if (deckInfo) deckInfo.innerText = `DECK: ${data.deckCount || '--'}`;
+
+    const stackTracker = document.getElementById('stack-tracker');
+    if (stackTracker) {
+        stackTracker.style.display = data.stack > 0 ? 'block' : 'none';
+        stackTracker.innerText = `🔥 STACK: +${data.stack}`;
+    }
 }
 
-// --- CARD RENDERING ---
-// Purpose: Draws your cards and applies the Smart Glow Logic.
 function renderHand(hand, topCard, lastDrawn, currentStack) {
     const cont = document.getElementById('my-hand');
+    if (!cont || !hand) return;
     cont.innerHTML = '';
     
     hand.forEach((c, i) => {
         const div = document.createElement('div');
         div.className = `card ${c.color}`;
         
-        // LOGIC: Tactical Draw Highlight (White Glow)
-        const isNew = lastDrawn && c.type === lastDrawn.type && c.color === lastDrawn.color;
+        // SAFE CHECK: Use ?. to prevent crash if lastDrawn is null
+        const isNew = lastDrawn && c.type === lastDrawn?.type && c.color === lastDrawn?.color;
 
-        // LOGIC: Smart Stacking Glow (Requirement 2)
         let canPlay = false;
         if (currentStack > 0) {
-            // Under attack: Only +4 or matching +2 glow.
-            canPlay = (c.type === '+4') || (topCard.type === '+2' && c.type === '+2');
+            canPlay = (c.type === '+4') || (topCard?.type === '+2' && c.type === '+2');
         } else {
-            // Normal play rules
-            canPlay = (c.color === topCard.color || c.type === topCard.type || c.color === 'black');
+            canPlay = (c.color === topCard?.color || c.type === topCard?.type || c.color === 'black');
         }
 
-        // Apply visual glows
         if (isNew) {
-            div.classList.add('recently-drawn'); // CSS handle for White Glow
+            div.classList.add('recently-drawn'); 
         } else if (myTurn && canPlay && !lastDrawn) {
-            div.classList.add('playable-glow'); // CSS handle for Gold Glow
+            div.classList.add('playable-glow'); 
         }
 
         div.innerHTML = `<span>${c.type}</span>`;
         
         div.onclick = () => {
             if(!myTurn || isSpectator) return;
-            
-            // FIX: Consistent variable naming for Tactical Draw check
-            const isRecentlyDrawn = lastDrawn && c.type === lastDrawn.type && c.color === lastDrawn.color;
+            const isRecentlyDrawn = lastDrawn && c.type === lastDrawn?.type && c.color === lastDrawn?.color;
             if (lastDrawn && !isRecentlyDrawn) return; 
 
-            // FIX: Standardize check for Black/Wild cards to trigger picker
             if (c.color === 'black' || c.type === 'Wild' || c.type === '+4') {
                 pendingIdx = i; 
                 const picker = document.getElementById('color-picker');
-                if (picker) {
-                    picker.style.display = 'flex';
-                }
+                if (picker) picker.style.display = 'flex';
             } else {
                 socket.emit('playCard', { index: i });
                 const playSfx = document.getElementById('sfx-play');
-                if (playSfx) playSfx.play();
+                if (playSfx) playSfx.play().catch(()=>{});
             }
         };
         cont.appendChild(div);
     });
 
-    // Sync Top Card
     const el = document.getElementById('top-card');
     if (el && topCard) {
         el.className = `card ${topCard.color}`;
