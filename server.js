@@ -134,7 +134,8 @@ io.on('connection', (socket) => {
     let mySessionId = null;
 
     socket.on('joinRoom', (data) => {
-        const { roomId, sessionId, playerLimit } = data;
+        // 1. Destructure playerName from the data we just set up in script.js
+        const { roomId, sessionId, playerLimit, playerName } = data;
         myRoomId = roomId; mySessionId = sessionId;
 
         if (!rooms[roomId]) {
@@ -150,7 +151,9 @@ io.on('connection', (socket) => {
         let p = room.players.find(p => p.sessionId === sessionId);
 
         if (p) {
+            // --- REJOINING PLAYER ---
             p.socketId = socket.id;
+            p.name = playerName || p.name || "Player"; // Update name if they changed it
             socket.join(roomId);
             socket.username = sessionId;
             if (room.reaperTimer) {
@@ -161,34 +164,36 @@ io.on('connection', (socket) => {
             socket.emit('roomJoined', roomId);
             updateRoom(roomId);
         } else if (room.players.length < room.maxPlayers && !room.gameStarted) {
+            // --- NEW PLAYER JOINING ---
             socket.join(roomId);
             socket.username = sessionId;
-            room.players.push({ sessionId, socketId: socket.id, hand: [], lastDrawnCard: null });
+            
+            // ADDED: name: playerName here
+            room.players.push({ 
+                sessionId, 
+                name: playerName || "Player", 
+                socketId: socket.id, 
+                hand: [], 
+                lastDrawnCard: null 
+            });
+            
             room.scores[sessionId] = room.scores[sessionId] || 0;
             socket.emit('roomJoined', roomId);
+
             if (room.players.length === room.maxPlayers) {
                 room.gameStarted = true;
-                // ADD THIS LINE: It clears the "Lobby: 4/4" and says "Starting"
                 io.to(roomId).emit('status', "Match Starting...");
                 startRound(roomId);
             } else {
-                // Fixed syntax error here
                 io.to(roomId).emit('status', `Lobby: ${room.players.length}/${room.maxPlayers}`);
+                // Force an update so everyone sees the new player name in the list
+                updateRoom(roomId); 
             }
-        } else socket.emit('roomFull');
-
-    socket.on('chatMessage', (data) => {
-        const room = rooms[myRoomId];
-        if (room) {
-            io.to(myRoomId).emit('newChatMessage', {
-                user: socket.username || "Player", 
-                 msg: data.msg
-            });
+        } else {
+            socket.emit('roomFull');
         }
     });
-
-    });
-
+    
     // --- BLOCK: PLAY CARD LOGIC ---
     // Purpose: Core gameplay, stacking hierarchy, and Win Logic.
     socket.on('playCard', (data) => {

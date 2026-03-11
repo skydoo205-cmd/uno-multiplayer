@@ -259,12 +259,22 @@ window.emitDraw = () => { if(myTurn) socket.emit('draw'); };
 
 // --- TOURNAMENT RESULTS ---
 socket.on('results', data => {
-    document.getElementById('score-list').innerHTML = data.order.map((id, i) => `
-        <div class="score-row" style="display:flex; justify-content:space-between; padding:10px; background:#333; margin:5px; border-left:3px solid gold;">
-            <span>${i+1}. ${id.substring(0,4)} ${id === sessionId ? '<strong>(YOU)</strong>' : ''}</span>
-            <span>Total: ${data.scores[id]}</span>
-        </div>
-    `).join('');
+    // 1. Clear and populate the list
+    const scoreList = document.getElementById('score-list');
+    
+    scoreList.innerHTML = data.order.map((id, i) => {
+        // Find the player name from the most recent data we have
+        // We look inside the global 'lastData' or similar if you store it, 
+        // or just use the ID if names aren't in this specific 'data' packet.
+        const nameToDisplay = id.substring(0,4); 
+
+        return `
+            <div class="score-row" style="display:flex; justify-content:space-between; padding:10px; background:#333; margin:5px; border-left:3px solid gold;">
+                <span>${i+1}. ${nameToDisplay} ${id === sessionId ? '<strong>(YOU)</strong>' : ''}</span>
+                <span>Total: ${data.scores[id]}</span>
+            </div>
+        `;
+    }).join('');
     
     document.getElementById('restart-status').innerText = "";
     document.getElementById('scoreboard-overlay').style.display = 'flex';
