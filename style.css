@@ -1,27 +1,24 @@
-/* --- 1. GLOBAL & LAYOUT --- */
-/* Purpose: Sets the dark theme and ensures the game fills the mobile/desktop screen perfectly. */
+/* --- 1. Global & Layout --- */
 body { 
     background: #1a1a1a; 
     color: white; 
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    font-family: 'Segoe UI', sans-serif; 
     text-align: center; 
     margin: 0; 
     overflow-x: hidden;
     min-height: 100dvh; 
 }
 
-/* BUG FIX: "Connecting" Freeze - The Grid layout for the game. 
-   Initially hidden via script.js until the 'init' event. */
 #game-container { 
-    display: none; /* Controlled by script.js */
+    display: none; 
     height: 100dvh; 
     width: 100vw;
-    grid-template-columns: 220px 1fr 250px; /* Sidebar | Play Area | Chat */
+    display: grid;
+    grid-template-columns: 220px 1fr 250px; /* Sidebar | Main | Chat */
     grid-template-rows: 1fr;
 }
 
-/* --- 2. SIDEBAR & PLAYER STATS --- */
-/* Purpose: Handles the 5-player list and the "Active Turn" highlight. */
+/* --- 2. Sidebar & Player Stats --- */
 #sidebar { 
     background: #222; 
     border-right: 2px solid #444; 
@@ -40,6 +37,7 @@ body {
     font-weight: bold;
     margin-bottom: 15px;
     text-align: center;
+    font-size: 0.9rem;
 }
 
 .stat-row { 
@@ -48,42 +46,50 @@ body {
     background: #333; 
     border-radius: 5px; 
     border-left: 4px solid gold; 
-    transition: all 0.3s ease;
+    font-size: 0.85rem;
+    transition: all 0.3s ease; /* Smooth transition for turn glow */
 }
 
-/* CORE LOGIC: Highlight the person whose turn it currently is. */
+/* NEW: Active Turn Highlight (Requirement 1) */
 .stat-row.active-turn {
     border-left-color: #2ecc71 !important;
     background: rgba(46, 204, 113, 0.2) !important;
-    box-shadow: 0 0 15px rgba(46, 204, 113, 0.4);
+    box-shadow: 0 0 15px rgba(46, 204, 113, 0.3);
     transform: scale(1.02);
 }
 
 .stat-row.offline { border-left-color: #e74c3c !important; opacity: 0.5; }
 
-/* --- 3. MAIN PLAY AREA --- */
+/* --- 3. Main Play Area --- */
 #main-play-area { 
     display: flex; 
     flex-direction: column; 
     padding: 10px;
-    position: relative;
+    overflow-y: auto;
 }
 
-#status { 
-    font-weight: bold; 
-    font-size: 1.2rem; 
-    margin: 10px 0;
-}
+#status { margin-top: 10px; font-weight: bold; font-size: 1.1rem; }
 
-/* BUG FIX: The "Stuck at 4s" Reaper container. */
+/* NEW: Reaper Warning Style (Problem 6) */
 #reaper-status {
-    background: rgba(231, 76, 60, 0.1);
-    padding: 5px;
-    border-radius: 5px;
+    color: #ff4d4d;
+    font-weight: bold;
+    margin-bottom: 10px;
+    animation: blink-red 1s infinite;
 }
 
-/* --- 4. CARD STYLING (70x100) --- */
-/* Purpose: Standardizes card size and ensures they react to mouse/touch. */
+@keyframes blink-red {
+    50% { opacity: 0.5; }
+}
+
+#deck-area {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 20px 0;
+}
+
+/* --- 4. Card Styles (70x100) --- */
 .card {
     flex: 0 0 70px; 
     width: 70px; 
@@ -93,111 +99,144 @@ body {
     display: flex; 
     align-items: center; 
     justify-content: center;
-    font-size: 18px; 
-    font-weight: 900; 
+    font-size: 16px; 
+    font-weight: bold; 
     cursor: pointer; 
     transition: transform 0.2s, box-shadow 0.3s;
+    user-select: none;
     position: relative;
-    box-sizing: border-box;
 }
 
-.card:hover { transform: translateY(-15px); z-index: 50; }
+.card:hover { transform: translateY(-10px); z-index: 100; }
 
-/* BUG FIX: Smart Stacking (Gold Glow). 
-   Only appears when it's your turn and the card is a valid move. */
+/* NEW: Playable Card Aura (Gold Glow - Requirement 2) */
 .playable-glow {
-    box-shadow: 0 0 20px 5px rgba(255, 215, 0, 0.8) !important;
+    box-shadow: 0 0 20px 5px rgba(255, 215, 0, 0.8);
     animation: card-pulse 1.5s infinite;
-    z-index: 10;
 }
 
-/* BUG FIX: Tactical Draw (White Glow). 
-   Highest Z-index to ensure the drawn card stays "on top" of the hand. */
+/* NEW: Tactical Draw Highlight (White Glow - Requirement 2) */
 .recently-drawn {
     border: 4px solid #fff !important;
-    box-shadow: 0 0 30px 10px rgba(255, 255, 255, 1) !important;
-    transform: translateY(-25px) scale(1.1) !important;
-    z-index: 100 !important; /* Above all other cards */
+    box-shadow: 0 0 25px 8px rgba(255, 255, 255, 0.9) !important;
+    transform: translateY(-20px) scale(1.1) !important;
+    z-index: 101 !important;
     animation: draw-attention 0.8s infinite alternate !important;
 }
 
-/* Card Colors */
+@keyframes draw-attention {
+    from { filter: brightness(1); }
+    to { filter: brightness(1.5); }
+}
+
+@keyframes card-pulse {
+    0% { box-shadow: 0 0 10px gold; }
+    50% { box-shadow: 0 0 25px gold; }
+    100% { box-shadow: 0 0 10px gold; }
+}
+
 .red { background: #e74c3c; } 
 .blue { background: #3498db; }
 .green { background: #2ecc71; } 
 .yellow { background: #f1c40f; color: black; }
-.black { background: #111; border-color: #555; } 
-.back { background: #444; border-color: #777; }
+.black { background: #222; } 
+.back { background: #444; border-color: #666; }
 
-/* --- 5. HAND LAYOUT --- */
-/* Purpose: Horizontal scrolling container for player cards. */
+/* --- 5. Hand Fix --- */
 #my-hand {
     display: flex;
-    justify-content: center;
-    gap: -10px; /* Slight overlap for a realistic look */
+    flex-direction: row; 
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: center;
     overflow-x: auto; 
-    padding: 30px 10px;
+    overflow-y: hidden;
+    width: 95%;
+    max-width: 800px;
     min-height: 140px;
+    padding: 10px;
+    margin: 10px auto;
 }
 
-/* --- 6. OVERLAYS (LOBBY & SCOREBOARD) --- */
-/* Purpose: Covers the screen for room setup and game results. */
+/* --- 6. Chat & Scoreboard --- */
+#chat-container {
+    background: #1a1a1a;
+    border-left: 2px solid #3498db;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.chat-header { background: #3498db; padding: 10px; font-weight: bold; }
+
+#chat-messages {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 10px;
+    text-align: left;
+    background: #1a1a1a;
+}
+
+/* Red Area: Bottom Scoreboard */
+#bottom-scoreboard {
+    margin-top: auto;
+    background: #111;
+    border-top: 3px solid #e74c3c;
+    padding: 10px;
+}
+
+/* NEW: Stack Tracker Visual (Requirement 3) */
+#stack-tracker {
+    background: #e74c3c;
+    color: white;
+    padding: 8px;
+    border-radius: 5px;
+    font-weight: 900;
+    margin: 10px auto;
+    width: fit-content;
+    border: 2px solid white;
+    animation: stack-blink 0.8s infinite;
+}
+
+@keyframes stack-blink {
+    50% { transform: scale(1.1); box-shadow: 0 0 15px red; }
+}
+
+/* --- 7. Overlays --- */
 #lobby-overlay, #scoreboard-overlay {
     position: fixed; 
     inset: 0; 
-    display: flex;
     justify-content: center; 
     align-items: center;
     background: rgba(0,0,0,0.95); 
-    z-index: 9999; /* Always on top */
+    display: flex;
 }
 
-.lobby-box, #scoreboard-content { 
-    background: #222; 
-    padding: 30px; 
-    border-radius: 15px; 
-    border: 3px solid gold; 
-    width: 300px; 
+#lobby-overlay { z-index: 9999; }
+#scoreboard-overlay { z-index: 8000; }
+
+/* NEW: Spectator UI (Requirement 5) */
+#spectator-ui {
+    position: fixed;
+    top: 10px;
+    right: 260px; /* Offset from chat */
+    background: rgba(0,0,0,0.8);
+    color: gold;
+    padding: 10px 20px;
+    border: 2px solid gold;
+    border-radius: 20px;
+    font-weight: bold;
+    z-index: 500;
 }
 
-/* --- 7. STACK TRACKER (The "Liar" Warning) --- */
-/* Purpose: Red pulsing indicator when a +2 or +4 stack is growing. */
-#stack-tracker {
-    background: #e74c3c;
-    border: 2px solid white;
-    padding: 10px;
-    border-radius: 5px;
-    font-weight: 900;
-    margin-top: 10px;
-    animation: pulse-red 1s infinite;
-}
-
-/* --- 8. ANIMATIONS --- */
-@keyframes card-pulse {
-    0% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
-    50% { box-shadow: 0 0 25px rgba(255, 215, 0, 1); }
-    100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
-}
-
-@keyframes draw-attention {
-    from { filter: brightness(1) contrast(1); }
-    to { filter: brightness(1.5) contrast(1.2); }
-}
-
-@keyframes pulse-red {
-    0% { transform: scale(1); box-shadow: 0 0 5px red; }
-    50% { transform: scale(1.05); box-shadow: 0 0 20px red; }
-    100% { transform: scale(1); box-shadow: 0 0 5px red; }
-}
-
-/* --- 9. RESPONSIVE --- */
-/* Purpose: Collapses the 3-column grid into a single column for phones. */
+/* --- 8. Responsive --- */
 @media (max-width: 800px) {
     #game-container {
         grid-template-columns: 1fr;
-        grid-template-rows: auto 1fr auto;
-        display: flex;
-        flex-direction: column;
+        grid-template-rows: auto 1fr auto auto;
+        display: block;
+        height: auto;
     }
-    #sidebar { width: 100%; border-right: none; border-bottom: 2px solid #444; }
+    #sidebar { width: 100%; border-right: none; }
+    #spectator-ui { right: 10px; top: auto; bottom: 10px; }
 }

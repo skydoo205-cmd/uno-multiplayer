@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UNO Master V5.2 - Stability Edition</title>
+    <title>UNO Master V5.2 - Tournament Edition</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,45 +11,41 @@
     <audio id="sfx-play" src="sounds/play.mp3" preload="auto"></audio>
     <audio id="sfx-draw" src="sounds/draw.mp3" preload="auto"></audio>
     <audio id="sfx-uno" src="sounds/uno.mp3" preload="auto"></audio>
+    <audio id="sfx-win" src="sounds/win.mp3" preload="auto"></audio>
 
     <div id="lobby-overlay">
         <div class="lobby-box">
             <h1>UNO MULTIPLAYER</h1>
-            
-            <div class="input-group">
-                <label>Display Name:</label>
-                <input type="text" id="name-input" placeholder="Enter Name..." maxlength="10">
-            </div>
-
-            <div class="input-group">
-                <label>Room Size:</label>
+            <div style="margin: 20px 0;">
+                <label style="color: gold; font-weight: bold;">Room Size:</label>
                 <select id="player-limit">
                     <option value="2">2 Players</option>
                     <option value="3">3 Players</option>
                     <option value="4" selected>4 Players</option>
                     <option value="5">5 Players</option>
-                    <option value="6">6 Players</option>
                 </select>
             </div>
-            
-            <button onclick="createRoom()" class="lobby-btn">CREATE ROOM</button>
+            <button onclick="createRoom()" class="lobby-btn">Create Room</button>
             <div class="separator">OR</div>
             <input type="text" id="room-input" placeholder="4-Digit Code" maxlength="4">
-            <button onclick="joinRoom()" class="lobby-btn join">JOIN ROOM</button>
+            <button onclick="joinRoom()" class="lobby-btn join">Join Room</button>
         </div>
     </div>
 
     <div id="game-container" style="display: none;">
-        
         <div id="sidebar">
             <div id="room-display">ROOM: ----</div>
-            <div id="stats-list"></div> <div id="deck-info" class="deck-count-text">DECK: --</div>
+            <div id="stats-list"></div>
+            
+            <div id="deck-info" class="deck-count-text">DECK: --</div>
             <div id="stack-tracker" style="display: none;">🔥 STACK: +0</div>
         </div>
 
         <div id="main-play-area">
             <div id="status">Connecting...</div>
-            <div id="reaper-status" style="color: #ff4d4d; font-weight: bold; display: none;"></div>
+            <div id="spectator-ui" style="display:none;">👁️ SPECTATING MODE (GOD MODE ON)</div>
+            
+            <div id="reaper-status" style="display: none;"></div>
 
             <div id="deck-area">
                 <div id="draw-pile" class="card back" onclick="emitDraw()">DECK</div>
@@ -57,9 +53,9 @@
             </div>
             
             <div id="controls">
-                <button id="uno-btn" onclick="emitUno()" class="ctrl-btn" style="display:none;">SAY UNO!</button>
-                <button id="penalty-btn" onclick="emitPenalty()" class="ctrl-btn" style="display:none;">PENALTY!</button>
-                <button id="pass-btn" onclick="emitPass()" class="ctrl-btn" style="display:none;">PASS</button>
+                <button id="uno-btn" onclick="emitUno()" class="ctrl-btn">SAY UNO!</button>
+                <button id="penalty-btn" onclick="emitPenalty()" class="ctrl-btn">PENALTY!</button>
+                <button id="pass-btn" onclick="emitPass()" class="ctrl-btn">PASS</button>
             </div>
 
             <div id="my-hand"></div>
@@ -74,34 +70,31 @@
             <div class="chat-header">ROOM CHAT</div>
             <div id="chat-messages"></div>
             <div class="chat-input-area">
-                <input type="text" id="chat-input" placeholder="Message..." maxlength="50">
-                <button onclick="sendChatMessage()" id="chat-send-btn">SEND</button>
+                <input type="text" id="chat-input" placeholder="Type message..." maxlength="50">
+                <button onclick="sendChatMessage()">SEND</button>
             </div>
         </div>
     </div> 
 
     <div id="scoreboard-overlay" style="display: none;">
         <div id="scoreboard-content">
-            <h2>Tournament Results</h2>
+            <h2 style="font-size: 1.8rem; color: #fff; margin-bottom: 20px;">Tournament Results</h2>
             <div id="score-list"></div>
-            <div id="restart-status" style="color: gold; margin: 10px 0;"></div>
-            <button id="next-round-btn" onclick="requestRestart()" class="lobby-btn join" style="display:none;">Next Round</button>
-            <button onclick="exitToLobby()" class="lobby-btn exit-btn">Exit Tournament</button>
+            <div id="restart-status" style="color: gold; margin: 15px 0; font-weight: bold;"></div>
+            
+            <button id="next-round-btn" onclick="requestRestart()" class="lobby-btn join">Vote: Next Round</button>
+            <button onclick="exitToLobby()" class="lobby-btn" style="background:#c0392b; margin-top: 10px;">Exit Tournament</button>
         </div>
     </div>
 
-    <div id="color-picker">
-        <p>PICK A COLOR:</p>
+    <div id="color-picker" style="display: none;">
+        <p style="font-weight: 900; color: white;">PICK A COLOR:</p>
         <div class="color-btns">
             <button onclick="chooseColor('red')" class="btn-red"></button>
             <button onclick="chooseColor('blue')" class="btn-blue"></button>
             <button onclick="chooseColor('green')" class="btn-green"></button>
             <button onclick="chooseColor('yellow')" class="btn-yellow"></button>
         </div>
-    </div>
-
-    <div id="spectator-ui" style="display:none;">
-        👁️ SPECTATING MODE
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
