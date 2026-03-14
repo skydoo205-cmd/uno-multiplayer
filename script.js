@@ -75,8 +75,11 @@ socket.on('init', data => {
 
 function updateUI(data) {
     if (!data) return;
-    myTurn = (sessionId === data.turnId) && !isSpectator;
-
+    // --- CHANGE THIS LINE ---
+    // We added: && data.gameStarted
+    // This ensures that if the game is over, myTurn is always false.
+    myTurn = (sessionId === data.turnId) && !isSpectator && data.gameStarted;
+    
     // Status Rendering (Retained your styling)
     const status = document.getElementById('status');
     if (status) {
@@ -84,9 +87,25 @@ function updateUI(data) {
             status.innerText = "SPECTATING...";
             status.style.color = "gold";
         } else {
-            const waitingText = status.innerText.includes("LOBBY") ? status.innerText : "WAITING...";
-            status.innerText = myTurn ? (data.lastDrawnCard ? "PLAY STAGED CARD OR PASS" : "YOUR TURN!") : waitingText;
-            status.style.color = myTurn ? "#2ecc71" : "white";
+            // Check if the game has actually started (player has cards)
+            const gameActive = data.hand && data.hand.length > 0;
+
+            if (!gameActive) {
+                // If game hasn't started, DON'T touch the status. 
+                // This lets the "LOBBY: X/X" message stay visible.
+            } else {
+                // Game IS active, now we manage the Turn/Waiting text
+                const activePlayer = data.players.find(p => p.sessionId === data.turnId);
+                const activeName = activePlayer ? activePlayer.name : "PLAYER";
+                
+                const waitingText = `WAITING FOR ${activeName.toUpperCase()}...`;
+                
+                status.innerText = myTurn ? 
+                    (data.lastDrawnCard ? "PLAY STAGED CARD OR PASS" : "YOUR TURN!") : 
+                    waitingText;
+                
+                status.style.color = myTurn ? "#2ecc71" : "white";
+            }
         }
     }
 
@@ -101,19 +120,26 @@ function updateUI(data) {
         }
     }
 
-    // Controls (Fixed Emitters)
+    // --- SECTION 2: BUTTON VISIBILITY (FIXED) ---
     const passBtn = document.getElementById('pass-btn');
     const unoBtn = document.getElementById('uno-btn');
     const penaltyBtn = document.getElementById('penalty-btn');
-
-    if (passBtn) passBtn.style.display = (myTurn && data.lastDrawnCard) ? 'block' : 'none';
-    
     const myPlayer = data.players ? data.players.find(p => p.sessionId === sessionId) : null;
-    if (unoBtn) {
-        const showUno = myTurn && myPlayer && myPlayer.cardCount <= 2 && !myPlayer.saidUno;
+
+    if (passBtn && unoBtn && penaltyBtn) {
+        // 1. Pass Button Logic
+        passBtn.style.display = (myTurn && data.lastDrawnCard) ? 'block' : 'none';
+
+        // 2. Uno Button Logic (Strategic Keeping)
+        // Show if it's my turn, I have a card staged, I have 1 card in hand, and haven't said UNO
+        const showUno = myTurn && data.lastDrawnCard && myPlayer && myPlayer.cardCount === 1 && !myPlayer.saidUno;
         unoBtn.style.display = showUno ? 'block' : 'none';
+
+        // 3. Penalty Button Logic
+        // Show for opponents if the 2-second window is active
+        const showPenalty = !myTurn && data.unoWindowActive && data.unoTarget !== sessionId;
+        penaltyBtn.style.display = showPenalty ? 'block' : 'none';
     }
-    if (penaltyBtn) penaltyBtn.style.display = data.unoWindowActive ? 'block' : 'none';
 
     // Sidebar Stats (Retained your complex template literal)
     const statsList = document.getElementById('stats-list');
@@ -278,5 +304,16 @@ socket.on('status', (msg) => {
         } else {
             statusDiv.classList.remove('lobby-pulse');
         }
+    }
+    function emitUno() {
+        socket.emit('unoAction', 'safe');
+    }
+
+    function emitPenalty() {
+        socket.emit('unoAction', 'penalty');
+    }
+
+    function emitPass() {
+        socket.emit('pass');
     }
 });

@@ -158,6 +158,7 @@ io.on('connection', (socket) => {
             room.players.push({ sessionId, name: playerName, socketId: socket.id, hand: [], lastDrawnCard: null, saidUno: false });
             room.scores[sessionId] = room.scores[sessionId] || 0;
             socket.emit('roomJoined', roomId);
+            
             if (room.players.length === room.maxPlayers) {
                 room.gameStarted = true;
                 startRound(roomId);
@@ -204,11 +205,15 @@ io.on('connection', (socket) => {
             if (card.type === '+4') room.stackCount += 4;
 
             let skipCount = 1;
-            if (card.type === 'Skip') skipCount = 2;
-            else if (card.type === 'Reverse') {
+            if (card.type === 'Skip') { 
+                skipCount = 2;
+            } else if (card.type === 'Reverse') {
                 const activePlayers = room.players.filter(p => !room.finishOrder.includes(p.sessionId));
-                if (activePlayers.length === 2) skipCount = 2;
-                else { room.direction *= -1; skipCount = 1; }
+                if (activePlayers.length === 2) {
+                     skipCount = 2;
+                } else {   
+                    room.direction *= -1; skipCount = 1; 
+                }
             }
 
             // Move card to House
@@ -219,16 +224,24 @@ io.on('connection', (socket) => {
             // RETAINED: 5-PLAYER FINISH LOGIC
             if (player.hand.length === 0) {
                 if (!room.finishOrder.includes(mySessionId)) room.finishOrder.push(mySessionId);
+
+                // Clear any staged cards so the UI doesn't glitch
+                player.lastDrawnCard = null;
+
                 const stillPlaying = room.players.filter(p => !room.finishOrder.includes(p.sessionId));
+
                 if (stillPlaying.length <= 1) {
                     if (stillPlaying.length === 1) {
                         const loserId = stillPlaying[0].sessionId;
                         if (!room.finishOrder.includes(loserId)) room.finishOrder.push(loserId);
                     }
+
                     room.finishOrder.forEach((sid, idx) => {
                         room.scores[sid] += (room.players.length - 1 - idx);
                     });
+
                     room.gameStarted = false;
+
                     io.to(myRoomId).emit('results', { order: room.finishOrder, scores: room.scores });
                     updateRoom(myRoomId);
                     return;
@@ -239,6 +252,14 @@ io.on('connection', (socket) => {
             if (player.hand.length === 1 && !player.saidUno) {
                 room.unoWindowActive = true;
                 room.unoTarget = player.sessionId;
+                
+                // ADD THIS: Auto-close the window after 2 seconds
+                setTimeout(() => {
+                    if (room.unoWindowActive && room.unoTarget === player.sessionId) {
+                        room.unoWindowActive = false;
+                        updateRoom(roomId); // Refresh UI to hide penalty button
+                    }
+                }, 2000); 
             }
 
             nextTurn(myRoomId, skipCount);
@@ -253,6 +274,8 @@ io.on('connection', (socket) => {
         const player = room.players[room.currentPlayerIndex];
         if (player.sessionId !== mySessionId || player.lastDrawnCard) return;
         
+        player.saidUno = false;
+
         const reshuffle = () => {
             if (room.deck.length < 1) {
                 const top = room.discardPile.pop();
@@ -311,6 +334,7 @@ io.on('connection', (socket) => {
                     target.hand.push(room.deck.shift());
                 }
                 room.unoWindowActive = false;
+                target.saidUno = false;
                 sortHand(target.hand);
             }
         }
