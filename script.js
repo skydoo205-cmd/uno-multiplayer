@@ -81,7 +81,7 @@ function updateUI(data) {
 
     // 2. SECOND: Define if it is my turn
     // (It's my turn IF: I am the turnId AND I'm not a spectator AND game is running)
-    myTurn = (sessionId === data.turnId) && !isSpectator && data.gameStarted;
+    myTurn = (sessionId === data.turnId) && !isSpectator;
 
     // 3. THIRD: Update the Status Text
     const status = document.getElementById('status');
