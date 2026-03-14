@@ -75,29 +75,26 @@ socket.on('init', data => {
 
 function updateUI(data) {
     if (!data) return;
-    // --- CHANGE THIS LINE ---
-    // We added: && data.gameStarted
-    // This ensures that if the game is over, myTurn is always false.
+
+    // 1. FIRST: Define if I am a spectator (finished players are spectators)
+    isSpectator = data.finishOrder && data.finishOrder.includes(sessionId);
+
+    // 2. SECOND: Define if it is my turn
+    // (It's my turn IF: I am the turnId AND I'm not a spectator AND game is running)
     myTurn = (sessionId === data.turnId) && !isSpectator && data.gameStarted;
-    
-    // Status Rendering (Retained your styling)
+
+    // 3. THIRD: Update the Status Text
     const status = document.getElementById('status');
     if (status) {
         if (isSpectator) {
             status.innerText = "SPECTATING...";
             status.style.color = "gold";
         } else {
-            // Check if the game has actually started (player has cards)
             const gameActive = data.hand && data.hand.length > 0;
 
-            if (!gameActive) {
-                // If game hasn't started, DON'T touch the status. 
-                // This lets the "LOBBY: X/X" message stay visible.
-            } else {
-                // Game IS active, now we manage the Turn/Waiting text
+            if (gameActive) {
                 const activePlayer = data.players.find(p => p.sessionId === data.turnId);
                 const activeName = activePlayer ? activePlayer.name : "PLAYER";
-                
                 const waitingText = `WAITING FOR ${activeName.toUpperCase()}...`;
                 
                 status.innerText = myTurn ? 
@@ -108,6 +105,7 @@ function updateUI(data) {
             }
         }
     }
+    // ... the rest of your function (Reaper, Buttons, Stats) continues below as it was
 
     // Reaper Status (Retained 100%)
     const reaperEl = document.getElementById('reaper-status');
